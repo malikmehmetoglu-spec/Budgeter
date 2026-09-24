@@ -144,6 +144,13 @@ button.item.upc{width:100%;text-align:start;color:inherit}
 .curbtn svg{width:22px;height:22px}
 .curbtn b{font-size:10.5px;font-weight:500;line-height:1}
 .big,.mid,.boxnum,.msg .mamt{white-space:nowrap;max-width:100%}
+.msg.sum{background:var(--lime);color:var(--lime-ink)}
+.msg.sum::before{display:none}
+.msg.sum .mamt{color:var(--lime-ink);font-size:min(40px,13cqi)}
+.msg.sum .mamt .cur,.msg.sum .mnote,.msg.sum small{color:rgba(27,34,8,.65)}
+.msg.sum .curbtn{width:44px;height:44px;box-shadow:none}.msg.sum .curbtn svg{width:17px;height:17px}.msg.sum .curbtn b{font-size:9px}
+.sumrows{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin-top:2px}
+.sumrows b{font-weight:500}
 .okbtn{height:40px;border-radius:99px;background:var(--lime);color:var(--lime-ink);font-weight:500;padding:0 18px;white-space:nowrap}
 .donechip{height:40px;border-radius:99px;background:var(--soft);color:var(--muted);padding:0 12px;display:inline-flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap}
 .donechip svg{width:15px;height:15px}
@@ -469,9 +476,26 @@ function dueFor(m=S.month){
     return [{inc:x,date,amount,period:per,rec:S.cash.find(c=>c.income_id===x.id&&c.period===per)}];
   }).sort((p,q)=>p.date<q.date?-1:1);
 }
+function pendSum(){
+  const keep=S.disp;S.disp=S.boxCur||S.disp;
+  const v=x=>conv(+x.amount,x.currency,rateNow());
+  const ins=S.pend.filter(x=>x.direction>0),outs=S.pend.filter(x=>x.direction<0);
+  const tin=ins.reduce((t,x)=>t+v(x),0),tout=outs.reduce((t,x)=>t+v(x),0),net=tin-tout,after=cashTotal()+net;
+  const late=S.pend.filter(x=>x.expected_on&&x.expected_on<iso(today())).length;
+  const html=`<div class="msg sum">
+    <div class="mtop"><div class="mtitle">مجموع المعلّقة · <span class="num">${S.pend.length}</span></div>${curBtn()}</div>
+    <div class="mamt">${money(net,S.disp,{sign:1})}</div>
+    <div class="sumrows">
+      <span>تدخل <b class="num">${money(tin,S.disp,{bare:1})}</b> <small>(${ins.length})</small></span>
+      <span>تخرج <b class="num">${money(tout,S.disp,{bare:1})}</b> <small>(${outs.length})</small></span>
+    </div>
+    <div class="mnote">الصندوق بعد تسويتها كلها: <b class="num" style="color:var(--lime-ink)">${money(after,S.disp,{bare:1})}</b>${late?` · <span style="color:#A3251A">${late} متأخرة</span>`:''}</div>
+  </div>`;
+  S.disp=keep;return html;
+}
 function pendMsgs(list){
   const td=iso(today());
-  return `<div class="msgs">${list.map(x=>{const late=x.expected_on&&x.expected_on<td,diff=x.expected_on?Math.round((pd(x.expected_on)-today())/864e5):null;
+  return `<div class="msgs">${S.pend.length>1?pendSum():''}${list.map(x=>{const late=x.expected_on&&x.expected_on<td,diff=x.expected_on?Math.round((pd(x.expected_on)-today())/864e5):null;
     const when=diff===null?'بدون موعد':diff<0?`متأخرة ${-diff} يوم`:diff===0?'اليوم':diff===1?'غداً':`بعد ${diff} يوم`;
     return `<div class="msg ${x.direction<0?'out':''} ${late?'late':''}">
       <div class="mtop"><div class="mtitle">${esc(x.title)}</div><span class="mwhen">${when}</span></div>
