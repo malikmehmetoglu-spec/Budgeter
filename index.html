@@ -7,8 +7,11 @@
 <meta name="theme-color" content="#1B1F1A">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon.svg">
+<link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Budgeter">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -444,6 +447,7 @@ function header(){
   return `<header class="top">
     <div class="brand"><i>${ico('wallet',2)}</i>Budgeter</div>
     <div class="pill month" aria-label="الشهر"><button id="mPrev" aria-label="الشهر السابق">${ico('chevr')}</button><b>${MONTHS[m.getMonth()]} <span class="num">${m.getFullYear()}</span></b><button id="mNext" aria-label="الشهر التالي">${ico('chev')}</button></div>
+    ${S.canInstall?`<button class="pill" id="installBtn" style="background:var(--lime);color:var(--lime-ink)">${ico('down')} تثبيت</button>`:''}
     <button class="pill ratepill" id="rateBtn" title="سعر الدولار">${stale?'<i class="stale"></i>':''}<span class="lbl">$1 =</span><b class="num">${S.rate?S.rate.toFixed(2):'—'}</b></button>
   </header>`;
 }
@@ -818,6 +822,7 @@ app.addEventListener('click',async e=>{
   if(t.id==='dispBtn'){S.disp=S.disp==='USD'?'SYP':'USD';store.set('disp',S.disp);return render()}
   if(t.id==='setBtn')return settingsSheet();
   if(t.id==='rateBtn')return rateSheet();
+  if(t.id==='installBtn'&&S.installEvt){S.installEvt.prompt();const r=await S.installEvt.userChoice;if(r.outcome==='accepted'){S.installEvt=null;S.canInstall=false;render()}return}
   if(t.dataset.go){S.view=t.dataset.go;render();scrollTo(0,0);return}
   if(t.dataset.quick){const i=document.getElementById('smartIn');i.value=t.dataset.quick+' ';i.focus();S.draft=parseSmart(i.value);renderPreview();return}
   if(t.dataset.editExp)return expSheet(S.exp.find(x=>x.id===t.dataset.editExp));
@@ -848,10 +853,13 @@ app.addEventListener('click',async e=>{
 document.getElementById('nav').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;S.view=b.dataset.v;render();scrollTo(0,0)});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&S.ready&&!document.querySelector('.scrim')&&!document.activeElement?.value)refresh().catch(()=>{})});
 
+/* ---------- PWA ---------- */
+if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+addEventListener('beforeinstallprompt',e=>{e.preventDefault();S.installEvt=e;S.canInstall=true;if(S.ready&&!document.querySelector('.scrim'))render()});
+addEventListener('appinstalled',()=>{S.installEvt=null;S.canInstall=false;toast('ثُبّت التطبيق');if(S.ready)render()});
 async function boot(){
-  S.ready=true;
   app.innerHTML=`<div style="padding:30vh 0;text-align:center" class="lbl">جارٍ التحميل...</div>`;
-  try{await loadAll();render()}catch(err){app.innerHTML=`<div class="card" style="margin-top:20vh">تعذّر تحميل البيانات: ${esc(err.message)}<br><br><button class="btn" onclick="location.reload()">إعادة المحاولة</button></div>`}
+  try{await loadAll();S.ready=true;render()}catch(err){app.innerHTML=`<div class="card" style="margin-top:20vh">تعذّر تحميل البيانات: ${esc(err.message)}<br><br><button class="btn" onclick="location.reload()">إعادة المحاولة</button></div>`}
 }
 boot();
 </script>
