@@ -72,19 +72,24 @@ span.num{direction:ltr;unicode-bidi:isolate}
 .due .ic{width:44px;height:44px;border-radius:50%;background:var(--soft);display:grid;place-items:center}
 .due .ic svg{width:18px;height:18px}
 .due.done .ic{background:var(--lime);color:var(--lime-ink)}
-.msgs{display:flex;flex-direction:column;gap:10px}
-.msg{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;background:var(--card);border-radius:22px;padding:12px 12px 12px 14px;border-inline-start:4px solid var(--lime)}
-.msg.out{border-inline-start-color:var(--bad)}
-.msg.late{background:color-mix(in srgb,var(--bad) 12%,var(--card))}
-.msg>div{min-width:0}
-.msg b{font-weight:500;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.msg small{color:var(--muted);font-size:12px;display:block}
-.msg .ic{width:44px;height:44px;border-radius:50%;background:var(--soft);display:grid;place-items:center}
-.msg .ic svg{width:18px;height:18px}
-.msg .more{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;color:var(--muted)}
+.msgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.msg{background:var(--card);border-radius:24px;padding:14px 18px;display:flex;flex-direction:column;gap:4px;min-width:0;position:relative;overflow:hidden;container-type:inline-size}
+.soft .msg,.msgs.onsoft .msg{background:var(--card)}
+.msg::before{content:"";position:absolute;inset-block:18px;inset-inline-start:0;width:4px;border-radius:0 4px 4px 0;background:var(--lime)}
+.msg.out::before{background:var(--bad)}
+.msg .mtop{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
+.msg .mamt{font-size:min(36px,12.5cqi);font-weight:300;line-height:1.1;letter-spacing:-.035em;color:var(--lime);white-space:nowrap;margin:4px 0 2px}
+.msg.out .mamt{color:var(--bad)}
+.msg .mamt .cur{font-size:13px;color:var(--muted)}
+.msg .mwhen{font-size:12px;border-radius:99px;padding:4px 10px;background:var(--soft);color:var(--muted);white-space:nowrap;flex:none}
+.msg.late .mwhen{background:color-mix(in srgb,var(--bad) 22%,var(--card));color:var(--bad)}
+.msg .mtitle{font-size:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.msg .mnote{font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.msg .macts{display:flex;align-items:center;gap:4px;margin-top:10px}
+.msg .macts .okbtn{flex:1;height:44px;font-size:15px}
+.msg .more{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;color:var(--muted);background:var(--soft)}
 .msg .more svg{width:17px;height:17px}
 .msg .more.armed{background:var(--bad);color:#fff}
-@media (max-width:560px){.msg{grid-template-columns:44px 1fr;row-gap:8px}.msg .acts{grid-column:1/-1;justify-content:flex-end}.msg .okbtn{min-width:90px}}
 .seg.boxcur{background:rgba(27,34,8,.1)}
 .seg.boxcur button{height:34px;padding:0 12px;font-size:13px;color:var(--lime-ink);white-space:nowrap}
 .seg.boxcur button[aria-pressed="true"]{background:var(--dark);color:var(--lime)}
@@ -461,9 +466,13 @@ function dueFor(m=S.month){
 function pendMsgs(list){
   const td=iso(today());
   return `<div class="msgs">${list.map(x=>{const late=x.expected_on&&x.expected_on<td,diff=x.expected_on?Math.round((pd(x.expected_on)-today())/864e5):null;
-    const when=diff===null?'بدون موعد':diff<0?`متأخرة ${-diff} يوم · ${fmtDate(x.expected_on)}`:diff===0?'متوقعة اليوم':`متوقعة بعد ${diff} يوم · ${fmtDate(x.expected_on)}`;
-    return `<div class="msg ${x.direction<0?'out':''} ${late?'late':''}"><span class="ic">${ico(x.direction<0?'up':'down')}</span><div><b>${esc(x.title)}</b><small>${x.direction<0?'تخرج':'تدخل'} ${money(+x.amount,x.currency)} · <span style="${late?'color:var(--bad)':''}">${when}</span></small>${x.note?`<small>${esc(x.note)}</small>`:''}</div>
-      <div class="acts"><button class="more" data-edit-pend="${x.id}" aria-label="تعديل">${ico('edit',1.6)}</button><button class="more" data-del-pend="${x.id}" aria-label="حذف">${ico('trash',1.6)}</button><button class="okbtn" data-done-pend="${x.id}">تم</button></div></div>`}).join('')}</div>`;
+    const when=diff===null?'بدون موعد':diff<0?`متأخرة ${-diff} يوم`:diff===0?'اليوم':diff===1?'غداً':`بعد ${diff} يوم`;
+    return `<div class="msg ${x.direction<0?'out':''} ${late?'late':''}">
+      <div class="mtop"><div class="mtitle">${esc(x.title)}</div><span class="mwhen">${when}</span></div>
+      <div class="mamt">${money(x.direction*x.amount,x.currency,{sign:1})}</div>
+      ${x.expected_on?`<div class="mnote">${x.direction>0?'متوقع استلامها':'متوقع دفعها'} ${fmtDate(x.expected_on)}</div>`:''}
+      ${x.note?`<div class="mnote">${esc(x.note)}</div>`:''}
+      <div class="macts"><button class="okbtn" data-done-pend="${x.id}">تم</button><button class="more" data-edit-pend="${x.id}" aria-label="تعديل">${ico('edit',1.6)}</button><button class="more" data-del-pend="${x.id}" aria-label="حذف">${ico('trash',1.6)}</button></div></div>`}).join('')}</div>`;
 }
 const pendDue=()=>S.pend.filter(x=>x.expected_on&&x.expected_on<=iso(today()));
 const pendingNow=()=>pendDue().length+dueFor(new Date(today().getFullYear(),today().getMonth(),1)).filter(d=>!d.rec&&d.date<=iso(today())).length;
@@ -705,12 +714,11 @@ function render(){
     body=`<div class="sectionhead"><h2 class="h">الصندوق</h2></div>
     <div class="grid"><section class="card span-7 hero" style="padding-top:26px"><div class="row" style="flex-wrap:wrap;gap:10px"><div class="lbl">رصيد الصندوق</div><div class="seg boxcur" role="group" aria-label="عملة عرض الصندوق">${[['USD','دولار'],['SYP','ليرة جديدة'],['OLD','ليرة قديمة']].map(([v,l])=>`<button type="button" data-boxcur="${v}" aria-pressed="${S.disp===v}">${l}</button>`).join('')}</div></div><div class="big" style="margin-top:8px;color:${t<0?'#A3251A':'inherit'}">${money(t)}</div>
       ${pend>0?`<div class="lbl" style="margin-top:10px">بانتظار الاستلام هذا الشهر: ${money(pend).replace(/<[^>]+>/g,'')}</div>`:''}
-      <div class="lbl" style="margin-top:6px">الموارد تدخل عند «تم» · المصروفات وأقساط الديون تُخصم تلقائياً</div>
       <div class="btns" style="margin-top:22px;max-width:380px"><button class="btn" style="background:var(--dark);color:var(--lime)" data-cash="1">${ico('plus')} إضافة</button><button class="btn ghost" style="background:rgba(255,255,255,.6);color:var(--lime-ink)" data-cash="-1">سحب</button></div></section>
     <section class="card span-5"><div class="row"><h2 class="h" style="font-size:22px">موارد ${MONTHS[S.month.getMonth()]}</h2><span class="lbl num">${due.filter(d=>d.rec).length}/${due.length}</span></div>
       <div class="list" style="margin-top:6px">${due.length?due.map(d=>`<div class="due ${d.rec?'done':''}"><span class="ic">${ico(d.rec?'check':'up')}</span><div><b>${esc(d.inc.name)}</b><small${!d.rec&&d.date<td?' class="late"':''}>${when(d)}</small><div class="num" style="margin-top:2px">${money(d.amount,d.inc.currency)}</div></div>
         ${d.rec?`<button class="donechip" data-undo="${d.rec.id}" aria-label="تراجع عن الاستلام">${ico('check')} تم ${ico('undo')}</button>`:`<button class="okbtn" data-recv="${d.inc.id}">تم</button>`}</div>`).join(''):`<div class="empty">لا موارد مستحقة هذا الشهر.<br>أضفها من تبويب الموارد.</div>`}</div></section>
-    <section class="card span-12 soft" style="background:var(--soft)"><div class="row" style="margin-bottom:12px"><div><h2 class="h" style="font-size:22px">دفعات معلّقة</h2><div class="lbl" style="margin-top:4px">مبالغ متوقعة، لا تدخل الصندوق إلا عند «تم»</div></div><button class="pill" style="background:var(--ink);color:var(--card)" id="addPend">${ico('plus')} دفعة</button></div>
+    <section class="card span-12 soft" style="background:var(--soft)"><div class="row" style="margin-bottom:12px"><div><h2 class="h" style="font-size:22px">دفعات معلّقة</h2></div><button class="pill" style="background:var(--ink);color:var(--card)" id="addPend">${ico('plus')} دفعة</button></div>
       ${S.pend.length?pendMsgs(S.pend):`<div class="empty" style="padding:14px 0">لا دفعات معلّقة</div>`}</section>
     <section class="card span-12"><div class="row"><h2 class="h" style="font-size:22px">حركات ${MONTHS[S.month.getMonth()]}</h2><div class="lbl" style="text-align:left">دخل <span class="num" style="color:var(--good)">${money(mIn,S.disp,{bare:1})}</span> · خرج <span class="num" style="color:var(--bad)">${money(mOut,S.disp,{bare:1})}</span></div></div><div class="list">${mv.length?mv.map(x=>`<div class="item"><span class="ic">${ico(x.icon)}</span><div><b>${esc(x.title)}</b><small>${fmtDate(x.date)} · ${esc(x.sub)}</small></div><div class="acts"><div class="amt" style="margin-inline-end:4px;color:${x.amount<0?'var(--bad)':'var(--good)'}">${money(x.amount,x.currency,{sign:1})}</div><button class="more del" data-del="${x.del}" aria-label="حذف">${ico('trash',1.6)}</button></div></div>`).join(''):`<div class="empty">لا حركات في هذا الشهر.</div>`}</div></section></div>`;
     S.disp=keep;
@@ -768,7 +776,6 @@ function incSheet(x){
     <div class="f"><span>التكرار</span><div class="seg" data-seg="fr">${[['daily','يومي'],['monthly','شهري'],['yearly','سنوي']].map(([v,l])=>`<button type="button" data-val="${v}" aria-pressed="${x.frequency===v}">${l}</button>`).join('')}</div></div>
     <div class="two"><div class="f"><span>يبدأ من (للسنوي: شهر الاستحقاق)</span><input id="d" type="date" value="${x.start_date}"></div>
     <div class="f"><span>يوم القبض من الشهر</span><input id="pdy" type="number" inputmode="numeric" min="1" max="31" class="num" value="${x.pay_day||''}" placeholder="${x.frequency==='daily'?'آخر الشهر':'مثل يوم البداية'}"></div></div>
-    <p class="lbl" style="margin:-4px 0 12px">في يوم القبض يظهر المورد في الصندوق، ولا يُضاف لرصيده إلا عندما تضغط «تم».</p>
     ${x.id?`<label class="f" style="flex-direction:row;align-items:center;gap:10px"><input type="checkbox" id="act" ${x.active?'checked':''} style="width:22px;height:22px"> <span style="font-size:14px;color:var(--ink)">فعّال</span></label>`:''}
     <div class="btns"><button class="btn">حفظ</button>${x.id?`<button type="button" class="btn danger" id="del" style="width:auto">${ico('trash')}</button>`:''}</div></form>`,s=>{
     wireSeg(s);
