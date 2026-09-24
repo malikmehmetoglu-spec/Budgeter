@@ -69,6 +69,19 @@ span.num{direction:ltr;unicode-bidi:isolate}
 .due .ic{width:44px;height:44px;border-radius:50%;background:var(--soft);display:grid;place-items:center}
 .due .ic svg{width:18px;height:18px}
 .due.done .ic{background:var(--lime);color:var(--lime-ink)}
+.msgs{display:flex;flex-direction:column;gap:10px}
+.msg{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;background:var(--card);border-radius:22px;padding:12px 12px 12px 14px;border-inline-start:4px solid var(--lime)}
+.msg.out{border-inline-start-color:var(--bad)}
+.msg.late{background:color-mix(in srgb,var(--bad) 12%,var(--card))}
+.msg>div{min-width:0}
+.msg b{font-weight:500;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.msg small{color:var(--muted);font-size:12px;display:block}
+.msg .ic{width:44px;height:44px;border-radius:50%;background:var(--soft);display:grid;place-items:center}
+.msg .ic svg{width:18px;height:18px}
+.msg .more{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;color:var(--muted)}
+.msg .more svg{width:17px;height:17px}
+.msg .more.armed{background:var(--bad);color:#fff}
+@media (max-width:560px){.msg{grid-template-columns:44px 1fr;row-gap:8px}.msg .acts{grid-column:1/-1;justify-content:flex-end}.msg .okbtn{min-width:90px}}
 .okbtn{height:40px;border-radius:99px;background:var(--lime);color:var(--lime-ink);font-weight:500;padding:0 18px;white-space:nowrap}
 .donechip{height:40px;border-radius:99px;background:var(--soft);color:var(--muted);padding:0 12px;display:inline-flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap}
 .donechip svg{width:15px;height:15px}
@@ -291,7 +304,7 @@ const store={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch{re
 const S = {
   user:null, view:'home', disp:store.get('disp','USD'), inCur:store.get('inCur','SYP'),
   month:(()=>{const d=today();d.setDate(1);return d})(), selDay:iso(today()),
-  cats:[], words:{}, incomes:[], exp:[], debts:[], pays:[], sav:[], cash:[], rate:null, rateRow:null,
+  cats:[], words:{}, incomes:[], exp:[], debts:[], pays:[], sav:[], cash:[], pend:[], rate:null, rateRow:null,
   draft:null
 };
 const rateNow=()=>S.rate||137;
@@ -321,15 +334,16 @@ const norm=w=>w.toLowerCase().replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').repl
 
 async function loadAll(){
   const q=t=>SB.from(t).select('*');
-  const [c,w,i,e,d,p,s,r,cb]=await Promise.all([
+  const [c,w,i,e,d,p,s,r,cb,pn]=await Promise.all([
     q('categories').order('sort'), q('word_map'), q('incomes').order('created_at'),
     q('expenses').order('spent_on',{ascending:false}).order('created_at',{ascending:false}),
     q('debts').order('created_at'), q('debt_payments').order('paid_on'), q('savings').order('moved_on',{ascending:false}),
     SB.from('rates').select('*').order('day',{ascending:false}).limit(1),
-    q('cash').order('moved_on',{ascending:false}).order('created_at',{ascending:false})
+    q('cash').order('moved_on',{ascending:false}).order('created_at',{ascending:false}),
+    q('pending').order('expected_on',{ascending:true,nullsFirst:false}).order('created_at')
   ]);
-  const err=[c,w,i,e,d,p,s,r,cb].find(x=>x.error); if(err) throw err.error;
-  S.cats=c.data; S.incomes=i.data; S.exp=e.data; S.debts=d.data; S.pays=p.data; S.sav=s.data; S.cash=cb.data;
+  const err=[c,w,i,e,d,p,s,r,cb,pn].find(x=>x.error); if(err) throw err.error;
+  S.cats=c.data; S.incomes=i.data; S.exp=e.data; S.debts=d.data; S.pays=p.data; S.sav=s.data; S.cash=cb.data; S.pend=pn.data;
   S.words=Object.fromEntries(w.data.map(x=>[x.word,x.category_id]));
   S.rateRow=r.data[0]||null; S.rate=S.rateRow?+S.rateRow.mid:null;
   if(!S.cats.length){
@@ -378,7 +392,15 @@ function dueFor(m=S.month){
     return [{inc:x,date,amount,period:per,rec:S.cash.find(c=>c.income_id===x.id&&c.period===per)}];
   }).sort((p,q)=>p.date<q.date?-1:1);
 }
-const pendingNow=()=>dueFor(new Date(today().getFullYear(),today().getMonth(),1)).filter(d=>!d.rec&&d.date<=iso(today())).length;
+function pendMsgs(list){
+  const td=iso(today());
+  return `<div class="msgs">${list.map(x=>{const late=x.expected_on&&x.expected_on<td,diff=x.expected_on?Math.round((pd(x.expected_on)-today())/864e5):null;
+    const when=diff===null?'بدون موعد':diff<0?`متأخرة ${-diff} يوم · ${fmtDate(x.expected_on)}`:diff===0?'متوقعة اليوم':`متوقعة بعد ${diff} يوم · ${fmtDate(x.expected_on)}`;
+    return `<div class="msg ${x.direction<0?'out':''} ${late?'late':''}"><span class="ic">${ico(x.direction<0?'up':'down')}</span><div><b>${esc(x.title)}</b><small>${x.direction<0?'تخرج':'تدخل'} ${money(+x.amount,x.currency)} · <span style="${late?'color:var(--bad)':''}">${when}</span></small>${x.note?`<small>${esc(x.note)}</small>`:''}</div>
+      <div class="acts"><button class="more" data-edit-pend="${x.id}" aria-label="تعديل">${ico('edit',1.6)}</button><button class="more" data-del-pend="${x.id}" aria-label="حذف">${ico('trash',1.6)}</button><button class="okbtn" data-done-pend="${x.id}">تم</button></div></div>`}).join('')}</div>`;
+}
+const pendDue=()=>S.pend.filter(x=>x.expected_on&&x.expected_on<=iso(today()));
+const pendingNow=()=>pendDue().length+dueFor(new Date(today().getFullYear(),today().getMonth(),1)).filter(d=>!d.rec&&d.date<=iso(today())).length;
 const jarTotal=()=>S.sav.reduce((t,x)=>t+conv(x.amount,x.currency,rateNow()),0);
 function debtInfo(d){
   const ps=S.pays.filter(p=>p.debt_id===d.id);
@@ -549,7 +571,8 @@ function render(){
   let body='';
   if(S.view==='home'){
     const dl=S.debts.reduce((t,d)=>t+conv(debtInfo(d).remaining,d.currency,rateNow()),0);
-    body=`<div class="grid">${heroCard()}${stats()}${weekStrip()}${curveCard()}
+    const pdue=pendDue();
+    body=`${pdue.length?`<div style="margin-bottom:14px">${pendMsgs(pdue)}</div>`:''}<div class="grid">${heroCard()}${stats()}${weekStrip()}${curveCard()}
       ${S.debts.length?`<div class="span-12 sectionhead"><div><h2 class="h">الديون</h2><div class="lbl" style="margin-top:6px">متبقٍّ عليك ${money(dl).replace(/<[^>]+>/g,'')}${S.disp==='SYP'?' ل.س':''}</div></div><button class="pill" data-go="debts">كل الديون</button></div>${S.debts.slice(0,1).map((d,i)=>debtCard(d,i)).join('')}`:''}
       ${catBars(S.debts.length?'span-6':'span-12')}</div>`;
   } else if(S.view==='exp'){
@@ -587,6 +610,8 @@ function render(){
     <section class="card span-5"><div class="row"><h2 class="h" style="font-size:22px">موارد ${MONTHS[S.month.getMonth()]}</h2><span class="lbl num">${due.filter(d=>d.rec).length}/${due.length}</span></div>
       <div class="list" style="margin-top:6px">${due.length?due.map(d=>`<div class="due ${d.rec?'done':''}"><span class="ic">${ico(d.rec?'check':'up')}</span><div><b>${esc(d.inc.name)}</b><small${!d.rec&&d.date<td?' class="late"':''}>${when(d)}</small><div class="num" style="margin-top:2px">${money(d.amount,d.inc.currency)}</div></div>
         ${d.rec?`<button class="donechip" data-undo="${d.rec.id}" aria-label="تراجع عن الاستلام">${ico('check')} تم ${ico('undo')}</button>`:`<button class="okbtn" data-recv="${d.inc.id}">تم</button>`}</div>`).join(''):`<div class="empty">لا موارد مستحقة هذا الشهر.<br>أضفها من تبويب الموارد.</div>`}</div></section>
+    <section class="card span-12 soft" style="background:var(--soft)"><div class="row" style="margin-bottom:12px"><div><h2 class="h" style="font-size:22px">دفعات معلّقة</h2><div class="lbl" style="margin-top:4px">مبالغ متوقعة، لا تدخل الصندوق إلا عند «تم»</div></div><button class="pill" style="background:var(--ink);color:var(--card)" id="addPend">${ico('plus')} دفعة</button></div>
+      ${S.pend.length?pendMsgs(S.pend):`<div class="empty" style="padding:14px 0">لا دفعات معلّقة</div>`}</section>
     <section class="card span-12"><div class="row"><h2 class="h" style="font-size:22px">حركات ${MONTHS[S.month.getMonth()]}</h2><div class="lbl" style="text-align:left">دخل <span class="num" style="color:var(--good)">${money(mIn,S.disp,{bare:1})}</span> · خرج <span class="num" style="color:var(--bad)">${money(mOut,S.disp,{bare:1})}</span></div></div><div class="list">${mv.length?mv.map(x=>`<div class="item"><span class="ic">${ico(x.icon)}</span><div><b>${esc(x.title)}</b><small>${fmtDate(x.date)} · ${esc(x.sub)}</small></div><div class="acts"><div class="amt" style="margin-inline-end:4px;color:${x.amount<0?'var(--bad)':'var(--good)'}">${money(x.amount,x.currency,{sign:1})}</div><button class="more del" data-del="${x.del}" aria-label="حذف">${ico('trash',1.6)}</button></div></div>`).join(''):`<div class="empty">لا حركات في هذا الشهر.</div>`}</div></section></div>`;
   } else if(S.view==='jar'){
     const t=jarTotal();const inc=incomeFor()||1;const h=Math.min(92,Math.max(8,t/(inc*6)*100));
@@ -696,6 +721,20 @@ function debtDetail(id){
     });
   });
 }
+function pendSheet(x){
+  x=x||{title:'',amount:'',currency:'USD',direction:1,expected_on:'',note:''};
+  sheet(x.id?'تعديل دفعة معلّقة':'دفعة معلّقة جديدة',`<form id="f">
+    <div class="f"><div class="seg" data-seg="dir"><button type="button" data-val="1" aria-pressed="${x.direction>0}">تدخل الصندوق</button><button type="button" data-val="-1" aria-pressed="${x.direction<0}">تخرج من الصندوق</button></div></div>
+    <div class="f"><span>الوصف</span><input id="t" value="${esc(x.title)}" placeholder="مثلاً: دين عند سامر، حوالة، مبيعات..." required></div>
+    <div class="f"><span>المبلغ</span><input id="a" inputmode="decimal" class="num" value="${x.amount}" required></div>
+    <div class="f">${curSeg('c',x.currency)}</div>
+    <div class="f"><span>التاريخ المتوقع (اختياري)</span><input id="d" type="date" value="${x.expected_on||''}"></div>
+    <div class="f"><span>ملاحظة</span><input id="n" value="${esc(x.note||'')}"></div>
+    <button class="btn">حفظ</button></form>`,s=>{
+    wireSeg(s);s.querySelector('#f').onsubmit=async e=>{e.preventDefault();const amount=parseFloat(s.querySelector('#a').value.replace(/,/g,''));if(!(amount>0))return toast('اكتب مبلغاً صحيحاً');
+      const row={title:s.querySelector('#t').value.trim(),amount,currency:segVal(s,'c'),direction:+segVal(s,'dir'),expected_on:s.querySelector('#d').value||null,note:s.querySelector('#n').value.trim()||null};
+      if(await run(x.id?SB.from('pending').update(row).eq('id',x.id):SB.from('pending').insert(row),'تم الحفظ'))s.remove()}});
+}
 function jarSheet(sign,tb='savings'){
   sheet(tb==='cash'?(sign>0?'إضافة إلى الصندوق':'سحب من الصندوق'):sign>0?'إيداع في الحصالة':'سحب من الحصالة',`<form id="f"><div class="f"><span>المبلغ</span><input id="a" inputmode="decimal" class="num" required></div><div class="f">${curSeg('c','USD')}</div><div class="f"><span>ملاحظة</span><input id="n"></div><div class="f"><span>التاريخ</span><input id="d" type="date" value="${iso(today())}"></div><button class="btn">${sign>0?'إيداع':'سحب'}</button></form>`,s=>{
     wireSeg(s);s.querySelector('#f').onsubmit=async e=>{e.preventDefault();const a=parseFloat(s.querySelector('#a').value.replace(/,/g,''));if(!(a>0))return;
@@ -771,7 +810,7 @@ app.addEventListener('submit',async e=>{
   S.draft=null;S.selDay=d.date;await refresh();toast(`أُضيف ${plain(d.amount,d.cur)} · ${catById(d.cat).name}`);
   document.getElementById('smartIn')?.focus();
 });
-app.addEventListener('click',e=>{
+app.addEventListener('click',async e=>{
   const t=e.target.closest('button,[data-go]');if(!t)return;
   if(t.id==='mPrev'||t.id==='mNext'){S.month=addMonths(S.month,t.id==='mPrev'?-1:1);const d=new Date(S.month);if(iso(d).slice(0,7)===iso(today()).slice(0,7))S.selDay=iso(today());else S.selDay=iso(d);return render()}
   if(t.id==='wPrev'||t.id==='wNext'){const d=pd(S.selDay);d.setDate(d.getDate()+(t.id==='wPrev'?-7:7));S.selDay=iso(d);if(d.getMonth()!==S.month.getMonth()){S.month=new Date(d.getFullYear(),d.getMonth(),1)}return render()}
@@ -786,6 +825,13 @@ app.addEventListener('click',e=>{
   if(t.dataset.debt)return debtDetail(t.dataset.debt);
   if(t.dataset.jar)return jarSheet(+t.dataset.jar);
   if(t.dataset.cash)return jarSheet(+t.dataset.cash,'cash');
+  if(t.id==='addPend')return pendSheet();
+  if(t.dataset.editPend)return pendSheet(S.pend.find(x=>x.id===t.dataset.editPend));
+  if(t.dataset.delPend){if(!armDel(t))return;return run(SB.from('pending').delete().eq('id',t.dataset.delPend),'حُذفت الدفعة المعلّقة')}
+  if(t.dataset.donePend){const x=S.pend.find(y=>y.id===t.dataset.donePend);if(!x)return;t.disabled=true;
+    const r=await SB.from('cash').insert({amount:x.amount*x.direction,currency:x.currency,rate:rateNow(),note:x.title,moved_on:iso(today())});
+    if(r.error){t.disabled=false;return toast('تعذّر الحفظ: '+r.error.message)}
+    return run(SB.from('pending').delete().eq('id',x.id),`${x.direction>0?'دخل':'خرج'} ${plain(+x.amount,x.currency)} ${x.direction>0?'إلى':'من'} الصندوق`)}
   if(t.dataset.recv){const d=dueFor().find(x=>x.inc.id===t.dataset.recv);if(!d)return;t.disabled=true;
     return run(SB.from('cash').insert({amount:d.amount,currency:d.inc.currency,rate:rateNow(),note:d.inc.name,moved_on:iso(today()),income_id:d.inc.id,period:d.period}),`أُضيف ${plain(d.amount,d.inc.currency)} إلى الصندوق`)}
   if(t.dataset.undo){if(!armDel(t))return;return run(SB.from('cash').delete().eq('id',t.dataset.undo),'أُلغي الاستلام')}
