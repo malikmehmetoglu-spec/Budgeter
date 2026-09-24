@@ -151,6 +151,11 @@ button.item.upc{width:100%;text-align:start;color:inherit}
 .msg.sum .curbtn{width:44px;height:44px;box-shadow:none}.msg.sum .curbtn svg{width:17px;height:17px}.msg.sum .curbtn b{font-size:9px}
 .sumrows{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin-top:2px}
 .sumrows b{font-weight:500}
+.dzone{margin-top:26px;padding-top:18px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.dzone b{font-weight:500;margin-bottom:2px}
+.wipebox{display:flex;gap:12px;align-items:flex-start;background:color-mix(in srgb,var(--bad) 14%,var(--card));border-radius:18px;padding:14px;margin-bottom:14px}
+.wipebox>svg{width:22px;height:22px;color:var(--bad);flex:none;margin-top:2px}
+.wipebox b{display:block;font-weight:500;margin-bottom:4px}.wipebox small{color:var(--muted);font-size:13px;line-height:1.6}
 .okbtn{height:40px;border-radius:99px;background:var(--lime);color:var(--lime-ink);font-weight:500;padding:0 18px;white-space:nowrap}
 .donechip{height:40px;border-radius:99px;background:var(--soft);color:var(--muted);padding:0 12px;display:inline-flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap}
 .donechip svg{width:15px;height:15px}
@@ -891,6 +896,33 @@ function jarSheet(sign,tb='savings'){
     wireSeg(s);s.querySelector('#f').onsubmit=async e=>{e.preventDefault();const a=parseFloat(s.querySelector('#a').value.replace(/,/g,''));if(!(a>0))return;
       if(await run(SB.from(tb).insert({...(n=>({amount:n.amount*sign,currency:n.currency}))(norm$(a,segVal(s,'c'))),rate:rateNow(),note:s.querySelector('#n').value.trim()||null,moved_on:s.querySelector('#d').value}),sign>0?'تم الإيداع':'تم السحب'))s.remove()}});
 }
+const DATA_TABLES=['debt_payments','cash','pending','savings','expenses','word_map','debts','incomes'];
+async function backup(){
+  const out={app:'Budgeter',exported_at:new Date().toISOString()};
+  for(const t of [...DATA_TABLES,'categories']){const r=await SB.from(t).select('*');if(r.error)return toast('تعذّر التنزيل: '+r.error.message);out[t]=r.data}
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(out,null,1)],{type:'application/json'}));
+  a.download=`budgeter-${iso(today())}.json`;document.body.append(a);a.click();a.remove();toast('نُزّلت النسخة الاحتياطية');
+}
+function wipeSheet(){
+  const n=S.exp.length+S.incomes.length+S.debts.length+S.pays.length+S.cash.length+S.pend.length+S.sav.length;
+  sheet('مسح وتصفير كل شيء',`
+    <div class="wipebox">${ico('trash')}<div><b>سيُحذف نهائياً ولا يمكن التراجع:</b>
+      <small>كل المصروفات، الموارد، الديون ودفعاتها، حركات الصندوق، الدفعات المعلّقة والحصالة (<span class="num">${n}</span> سجلاً)، وتعود الفئات إلى الأصلية. يبقى سعر الصرف فقط.</small></div></div>
+    <button type="button" class="btn ghost" id="bk" style="margin-bottom:14px">${ico('down')} نزّل نسخة احتياطية أولاً</button>
+    <div class="f"><span>للتأكيد اكتب كلمة <b style="color:var(--ink)">مسح</b></span><input id="cf" autocomplete="off"></div>
+    <button type="button" class="btn danger" id="go" disabled style="opacity:.4">مسح كل شيء</button>`,s=>{
+    const cf=s.querySelector('#cf'),go=s.querySelector('#go');
+    s.querySelector('#bk').onclick=backup;
+    cf.oninput=()=>{const ok=cf.value.trim()==='مسح';go.disabled=!ok;go.style.opacity=ok?1:.4};
+    go.onclick=async()=>{go.disabled=true;go.textContent='جارٍ المسح...';
+      for(const t of DATA_TABLES){const r=await (t==='word_map'?SB.from(t).delete().neq('word',''):SB.from(t).delete().not('id','is',null));
+        if(r.error){toast('تعذّر المسح: '+r.error.message);go.disabled=false;go.textContent='مسح كل شيء';return}}
+      const c=await SB.from('categories').delete().not('id','is',null);if(c.error){toast('تعذّر مسح الفئات: '+c.error.message);return}
+      ['boxCur','disp','inCur'].forEach(k=>{try{localStorage.removeItem(k)}catch{}});
+      S.boxCur=null;S.disp='USD';S.inCur='SYP';S.view='home';S.draft=null;
+      s.remove();await refresh();toast('تم مسح كل شيء');scrollTo(0,0)};
+  });
+}
 const CAT_ICONS=['fuel','home','bolt','health','flame','food','car','fun','wallet','cal','jar','dot'];
 function settingsSheet(){
   sheet('الإعدادات',`
@@ -899,6 +931,11 @@ function settingsSheet(){
     <b style="font-weight:500;display:block;margin:18px 0 2px">الفئات</b><p class="lbl" style="margin:0 0 6px">اضغط الأيقونة لتغييرها، واكتب فوق الاسم لتعديله.</p>
     <div class="list" id="cl">${S.cats.map(c=>`<div class="item"><button class="ic" data-caticon="${c.id}" title="تغيير الأيقونة" aria-label="تغيير الأيقونة">${ico(c.icon)}</button><input value="${esc(c.name)}" data-cat="${c.id}" style="border:0;background:none;font-size:15px;outline:0;min-width:0" aria-label="اسم الفئة"><button class="more" data-delcat="${c.id}" aria-label="حذف">${ico('trash',1.5)}</button></div>`).join('')}</div>
     <form id="nc" style="display:flex;gap:8px;margin-top:10px"><div class="f" style="flex:1;margin:0"><input id="ncn" placeholder="فئة جديدة"></div><button class="round ink" style="width:52px;height:52px" aria-label="إضافة فئة">${ico('plus')}</button></form>
+    <div class="dzone">
+      <b>البيانات</b>
+      <button type="button" class="btn ghost" id="backup">${ico('down')} تنزيل نسخة احتياطية</button>
+      <button type="button" class="btn danger" id="wipe">${ico('trash')} مسح وتصفير كل شيء</button>
+    </div>
 `,s=>{
     wireSeg(s);
     s.querySelectorAll('.seg').forEach(g=>g.addEventListener('click',()=>{S.inCur=segVal(s,'in');S.disp=segVal(s,'disp');store.set('inCur',S.inCur);store.set('disp',S.disp);render()}));
@@ -906,6 +943,8 @@ function settingsSheet(){
     s.addEventListener('click',async e=>{const ci=e.target.closest('[data-caticon]');if(ci){const c=S.cats.find(x=>x.id===ci.dataset.caticon);const nx=CAT_ICONS[(CAT_ICONS.indexOf(c.icon)+1)%CAT_ICONS.length];c.icon=nx;ci.innerHTML=ico(nx);clearTimeout(ci._t);ci._t=setTimeout(()=>run(SB.from('categories').update({icon:nx}).eq('id',c.id),'حُفظت الأيقونة'),700);return}
       const b=e.target.closest('[data-delcat]');if(!b)return;if(!b.dataset.armed){b.dataset.armed=1;b.style.color='var(--bad)';toast('اضغط مرة أخرى للحذف');return}
       if(await run(SB.from('categories').delete().eq('id',b.dataset.delcat),'حُذفت الفئة')){s.remove();settingsSheet()}});
+    s.querySelector('#backup').onclick=backup;
+    s.querySelector('#wipe').onclick=()=>{s.remove();wipeSheet()};
     s.querySelector('#nc').onsubmit=async e=>{e.preventDefault();const n=s.querySelector('#ncn').value.trim();if(!n)return;if(await run(SB.from('categories').insert({name:n,icon:'dot',sort:S.cats.length}),'أضيفت الفئة')){s.remove();settingsSheet()}};
   });
 }
