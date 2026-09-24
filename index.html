@@ -741,9 +741,21 @@ function render(){
   } else if(S.view==='inc'){
     const lab={daily:'يومي',monthly:'شهري',yearly:'سنوي',once:'مقطوع'};
     const incWhen=x=>{if(x.frequency==='once'){const got=S.cash.find(c=>c.income_id===x.id);return got?'استُلم '+fmtDate(got.moved_on):'متوقع '+fmtDate(x.start_date)}return 'يُقبض '+(x.frequency==='yearly'?(x.pay_day||pd(x.start_date).getDate())+' '+MONTHS[pd(x.start_date).getMonth()]:'يوم '+(x.frequency==='daily'&&!x.pay_day?'آخر الشهر':(x.pay_day||pd(x.start_date).getDate())))};
-    body=`<div class="sectionhead"><h2 class="h">الموارد</h2><div style="display:flex;gap:8px"><button class="pill" style="background:var(--lime);color:var(--lime-ink)" id="addOnce">${ico('plus')} مقطوع</button><button class="pill" style="background:var(--ink);color:var(--card)" id="addInc">${ico('plus')} ثابت</button></div></div>
-    <div class="grid"><section class="card hero span-12" style="padding-top:26px"><div class="lbl">الوارد المتوقع في ${MONTHS[S.month.getMonth()]}</div><div class="big" style="margin-top:8px">${money(incomeFor())}</div></section>
-    <section class="card span-12"><div class="list">${S.incomes.length?S.incomes.map(x=>`<div class="item" style="${x.active?'':'opacity:.45'}"><span class="ic" style="${x.frequency==='once'?'background:var(--lime);color:var(--lime-ink)':''}">${ico(x.frequency==='once'?'coins':'up')}</span><div><b>${esc(x.name)}</b><small>${lab[x.frequency]} · ${incWhen(x)}${x.active?'':' · متوقف'}</small></div><div class="acts"><div class="amt" style="margin-inline-end:4px">${money(+x.amount,x.currency)}</div><button class="more" data-edit-inc="${x.id}" aria-label="تعديل">${ico('edit',1.6)}</button><button class="more del" data-del="incomes:${x.id}" aria-label="حذف">${ico('trash',1.6)}</button></div></div>`).join(''):`<div class="empty">أضف راتبك أو دخلاً ثابتاً، أو عملاً مقطوعاً على القطعة</div>`}</div></section></div>`;
+    const incRow=x=>`<div class="item" style="${x.active?'':'opacity:.45'}"><span class="ic" style="${x.frequency==='once'?'background:var(--lime);color:var(--lime-ink)':''}">${ico(x.frequency==='once'?'coins':'up')}</span><div><b>${esc(x.name)}</b><small>${lab[x.frequency]} · ${incWhen(x)}${x.active?'':' · متوقف'}</small></div><div class="acts"><div class="amt" style="margin-inline-end:4px">${money(+x.amount,x.currency)}</div><button class="more" data-edit-inc="${x.id}" aria-label="تعديل">${ico('edit',1.6)}</button><button class="more del" data-del="incomes:${x.id}" aria-label="حذف">${ico('trash',1.6)}</button></div></div>`;
+    const fixed=S.incomes.filter(x=>x.frequency!=='once');
+    const got=x=>S.cash.some(c=>c.income_id===x.id);
+    const once=S.incomes.filter(x=>x.frequency==='once').sort((p,q)=>(got(p)-got(q))||(got(p)?(p.start_date<q.start_date?1:-1):(p.start_date<q.start_date?-1:1)));
+    const [ma,mb]=monthRange();
+    const fixedM=incomeFor()-S.incomes.filter(x=>x.frequency==='once'&&x.active&&x.start_date>=ma&&x.start_date<=mb).reduce((t,x)=>t+conv(+x.amount,x.currency,rateNow()),0);
+    const onceM=incomeFor()-fixedM;
+    const onceWait=once.filter(x=>!got(x)).reduce((t,x)=>t+conv(+x.amount,x.currency,rateNow()),0);
+    body=`<div class="sectionhead"><h2 class="h">الموارد</h2></div>
+    <div class="grid"><section class="card hero span-12" style="padding-top:26px"><div class="lbl">الوارد المتوقع في ${MONTHS[S.month.getMonth()]}</div><div class="big" style="margin-top:8px">${money(incomeFor())}</div>
+      <div class="inout" style="margin-top:12px"><span>ثابت <b class="num">${money(fixedM,S.disp,{bare:1})}</b></span><span>مقطوع <b class="num">${money(onceM,S.disp,{bare:1})}</b></span></div></section>
+    <section class="card span-6"><div class="row"><div><h2 class="h" style="font-size:22px">الموارد الثابتة</h2><div class="lbl" style="margin-top:4px">تتكرر يومياً أو شهرياً أو سنوياً</div></div><button class="pill" style="background:var(--ink);color:var(--card)" id="addInc">${ico('plus')} ثابت</button></div>
+      <div class="list" style="margin-top:6px">${fixed.length?fixed.map(incRow).join(''):`<div class="empty">أضف راتبك أو أي دخل متكرر</div>`}</div></section>
+    <section class="card span-6"><div class="row"><div><h2 class="h" style="font-size:22px">الموارد المقطوعة</h2><div class="lbl" style="margin-top:4px">${onceWait>0?`بانتظار القبض ${money(onceWait,S.disp,{bare:1})}`:'دفعات لمرة واحدة، مثل العمل على القطعة'}</div></div><button class="pill" style="background:var(--lime);color:var(--lime-ink)" id="addOnce">${ico('plus')} مقطوع</button></div>
+      <div class="list" style="margin-top:6px">${once.length?once.map(incRow).join(''):`<div class="empty">لا موارد مقطوعة بعد</div>`}</div></section></div>`;
   } else if(S.view==='box'){
     const keep=S.disp;S.disp=S.boxCur||S.disp;
     const t=cashTotal(),due=dueFor(),td=iso(today());
