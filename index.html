@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Budgeter</title>
-<meta name="theme-color" content="#B4BDB1">
+<meta name="theme-color" content="#1B1F1A">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon.svg">
@@ -17,20 +17,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
 <style>
 :root{
-  --bg:#B4BDB1; --card:#F6F7F2; --soft:#E3E7DE; --line:#D3D8CD;
-  --lime:#DCF25A; --lime-ink:#1B2208; --ink:#121411; --muted:#6A7166; --faint:#9AA196;
-  --dark:#121411; --dark-ink:#F4F6EF; --dark-muted:#9BA197;
-  --good:#3F8F4E; --bad:#C2472F;
-  --r:30px; --r-sm:20px;
-  color-scheme:light;
-}
-@media (prefers-color-scheme: dark){
-  :root{
-    --bg:#1B1F1A; --card:#262B24; --soft:#30362D; --line:#3A4137;
-    --ink:#EEF1E8; --muted:#A3AA9E; --faint:#737A6F;
-    --dark:#0C0E0B; --good:#7FC98B; --bad:#EE8A73;
-    color-scheme:dark;
-  }
+  --bg:#1B1F1A; --card:#262B24; --soft:#30362D; --line:#3A4137;
+  --lime:#DCF25A; --lime-ink:#1B2208; --ink:#EEF1E8; --muted:#A3AA9E; --faint:#737A6F;
+  --dark:#0C0E0B; --dark-ink:#F4F6EF; --dark-muted:#9BA197;
+  --good:#7FC98B; --bad:#EE8A73;
+  --r:28px; --r-sm:20px;
+  color-scheme:dark;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;min-height:100%}
@@ -47,7 +39,7 @@ button{cursor:pointer;border:0;background:none}
 [hidden]{display:none!important}
 
 /* header */
-.top{display:flex;align-items:center;gap:10px;padding-block:18px 14px}
+.top{display:flex;align-items:center;gap:10px;padding-block:18px 14px;flex-wrap:wrap}
 .brand{font-size:26px;font-weight:500;letter-spacing:-.03em;margin-inline-end:auto;display:flex;align-items:center;gap:10px}
 .brand i{width:34px;height:34px;border-radius:50%;background:var(--lime);display:grid;place-items:center}
 .pill{height:44px;border-radius:99px;background:var(--card);display:inline-flex;align-items:center;gap:8px;padding:0 16px;font-weight:500;white-space:nowrap}
@@ -93,6 +85,10 @@ button{cursor:pointer;border:0;background:none}
 .hero-title small{display:block;font-size:12px;opacity:.6}
 .bar{height:6px;border-radius:9px;background:rgba(255,255,255,.75);overflow:hidden}
 .bar i{display:block;height:100%;background:var(--ink);border-radius:9px;transition:width .6s}
+.hero .bar,.debt.lime .bar{background:rgba(27,34,8,.14)}
+.hero .bar i,.debt.lime .bar i{background:var(--dark)}
+.hero .round.ink{background:var(--dark);color:var(--lime)}
+.hero-title .av,.debt .who i{background:var(--dark)!important;color:var(--lime)}
 .row{display:flex;align-items:center;justify-content:space-between;gap:10px}
 
 /* smart add */
@@ -104,7 +100,7 @@ button{cursor:pointer;border:0;background:none}
 .smart .round{width:56px;height:56px}
 .preview{margin-top:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .chip{height:34px;border-radius:99px;padding:0 13px;display:inline-flex;align-items:center;gap:6px;font-size:13px;background:rgba(255,255,255,.6);color:var(--lime-ink);border:1px solid transparent}
-.chip[aria-pressed="true"]{background:var(--ink);color:var(--lime)}
+.chip[aria-pressed="true"]{background:var(--dark);color:var(--lime)}
 .chip.warn{background:#fff;border-color:var(--ink)}
 .quick{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
 .quick .chip{background:transparent;border-color:rgba(27,34,8,.25)}
@@ -155,10 +151,15 @@ button{cursor:pointer;border:0;background:none}
 .item .ic{width:44px;height:44px;border-radius:50%;background:var(--soft);display:grid;place-items:center}
 .item .ic svg{width:18px;height:18px}
 .item b{font-weight:500;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.item small{color:var(--muted);font-size:12px}
+.item small{color:var(--muted);font-size:12px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .item .amt{text-align:left;font-size:18px}
 .item .amt small{display:block}
-.item button.more{width:34px;height:34px;border-radius:50%}
+.item>div{min-width:0}
+.item button.more{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;color:var(--muted)}
+.item button.more:hover{background:var(--soft);color:var(--ink)}
+.item button.more svg{width:17px;height:17px}
+.item button.del.armed,.item button[data-delpay].armed{background:var(--bad);color:#fff}
+.acts{display:flex;align-items:center;gap:2px}
 .group{font-size:13px;color:var(--muted);margin-top:14px;display:flex;justify-content:space-between}
 .empty{color:var(--muted);padding:26px 0;text-align:center}
 
@@ -175,7 +176,8 @@ button{cursor:pointer;border:0;background:none}
 .card:not(.lime) .facts div{background:var(--soft)}
 .facts b{display:block;font-size:18px;font-weight:400}
 .facts small{font-size:11px;opacity:.7}
-.addcard{border:1.5px dashed var(--faint);background:transparent;display:grid;place-items:center;min-height:180px;color:var(--muted);gap:8px;align-content:center}
+.addcard{border:1.5px dashed var(--faint);background:transparent;display:grid;place-items:center;min-height:160px;color:var(--muted);gap:8px;align-content:center}
+.addcard svg{width:28px;height:28px}
 
 /* savings */
 .jar{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:end}
@@ -212,9 +214,11 @@ button{cursor:pointer;border:0;background:none}
 .ratepill{font-size:13px}
 .ratepill b{font-size:15px;font-weight:500}
 .stale{width:8px;height:8px;border-radius:50%;background:var(--bad)}
-@media (max-width:560px){.brand{font-size:20px}.brand i{width:30px;height:30px}.ratepill .lbl{display:none}.top{gap:6px}.pill{padding:0 12px}.month{padding:0 4px}}
+@media (max-width:560px){.brand{font-size:22px;flex-basis:100%}.brand i{width:30px;height:30px}.top{gap:8px}.pill{padding:0 12px}.month{padding:0 4px;flex:1;justify-content:space-between}}
 .side{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.side .tile{min-height:0}
+.side .tile{min-height:140px;padding:20px}
+.side .mid{font-size:clamp(24px,3.2vw,34px)}
+.tile .mid{overflow-wrap:anywhere}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -247,6 +251,7 @@ const P = {
   wallet:'<rect x="3" y="6" width="18" height="14" rx="3"/><path d="M16 13h2M3 10h18M6 6l9-3 1 3"/>',
   jar:'<path d="M7 4h10M8 4v3a6 6 0 0 0-3 5v5a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3v-5a6 6 0 0 0-3-5V4"/>',
   pdf:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 15l3 3 3-3M12 11v7"/>',
+  edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>',
   x:'<path d="M6 6l12 12M18 6 6 18"/>', chev:'<path d="m15 6-6 6 6 6"/>', chevr:'<path d="m9 6 6 6-6 6"/>',
   trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>', spark:'<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>',
   cal:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>'
@@ -405,7 +410,7 @@ function renderPreview(){
   if(!d||!d.amount){el.innerHTML='';return}
   const oldGuard=d.cur==='SYP'&&d.amount>=200000;
   el.innerHTML=`<div class="preview">
-    <span class="chip" style="background:var(--ink);color:var(--lime);font-size:15px"><b class="num">${plain(d.amount,d.cur)}</b></span>
+    <span class="chip" style="background:var(--dark);color:var(--lime);font-size:15px"><b class="num">${plain(d.amount,d.cur)}</b></span>
     <button class="chip" data-pcur>${d.cur==='USD'?'دولار':'ليرة'} ${ico('swap')}</button>
     <button class="chip" data-pdate>${ico('cal')} ${esc(d.dateTxt)}</button>
     ${S.cats.map(c=>`<button class="chip" data-pcat="${c.id}" aria-pressed="${c.id===d.cat}">${esc(c.name)}</button>`).join('')}
@@ -476,7 +481,7 @@ function weekStrip(){
 function expItem(x){
   const c=catById(x.category_id);
   return `<div class="item"><span class="ic">${ico(c.icon)}</span><div style="min-width:0"><b>${esc(x.note||c.name)}</b><small>${esc(c.name)}${x.currency!==S.disp?` · <span class="num">${plain(+x.amount,x.currency)}</span>`:''}</small></div>
-  <div style="display:flex;align-items:center;gap:4px"><div class="amt">${money(conv(x.amount,x.currency,x.rate))}</div><button class="more" data-edit-exp="${x.id}" aria-label="تعديل">${ico('dot',1.5)}</button></div></div>`;
+  <div class="acts"><div class="amt" style="margin-inline-end:4px">${money(conv(x.amount,x.currency,x.rate))}</div><button class="more" data-edit-exp="${x.id}" aria-label="تعديل">${ico('edit',1.6)}</button><button class="more del" data-del="expenses:${x.id}" aria-label="حذف">${ico('trash',1.6)}</button></div></div>`;
 }
 function catBars(span='span-4'){
   const sums={};expIn().forEach(x=>{sums[x.category_id]=(sums[x.category_id]||0)+conv(x.amount,x.currency,x.rate)});
@@ -518,7 +523,7 @@ function render(){
     <div class="grid">
       <section class="card tile ink span-6"><div class="lbl">مجموع المتبقي</div><div class="big">${money(tot)}</div></section>
       <section class="card tile span-3"><div class="lbl">أقساط شهرية</div><div class="mid">${money(monthly)}</div></section>
-      <section class="card tile soft"><div class="lbl">دفعت هذا الشهر</div><div class="mid">${money(debtPaidFor())}</div></section>
+      <section class="card tile soft span-3"><div class="lbl">دفعت هذا الشهر</div><div class="mid">${money(debtPaidFor())}</div></section>
       ${S.debts.map((d,i)=>debtCard(d,i)).join('')}
       <button class="card addcard span-6" id="addDebt2">${ico('plus')}<span>أضف ديناً</span></button>
     </div>`;
@@ -526,14 +531,14 @@ function render(){
     const lab={daily:'يومي',monthly:'شهري',yearly:'سنوي'};
     body=`<div class="sectionhead"><h2 class="h">الموارد الثابتة</h2><button class="pill" style="background:var(--ink);color:var(--card)" id="addInc">${ico('plus')} مورد</button></div>
     <div class="grid"><section class="card hero span-12" style="padding-top:26px"><div class="lbl">الوارد المتوقع في ${MONTHS[S.month.getMonth()]}</div><div class="big" style="margin-top:8px">${money(incomeFor())}</div></section>
-    <section class="card span-12"><div class="list">${S.incomes.length?S.incomes.map(x=>`<div class="item" style="${x.active?'':'opacity:.45'}"><span class="ic">${ico('up')}</span><div><b>${esc(x.name)}</b><small>${lab[x.frequency]}${x.frequency==='yearly'?' · '+MONTHS[pd(x.start_date).getMonth()]:''}${x.active?'':' · متوقف'}</small></div><div style="display:flex;gap:4px;align-items:center"><div class="amt">${money(+x.amount,x.currency)}</div><button class="more" data-edit-inc="${x.id}" aria-label="تعديل">${ico('dot',1.5)}</button></div></div>`).join(''):`<div class="empty">أضف راتبك أو أي دخل ثابت</div>`}</div></section></div>`;
+    <section class="card span-12"><div class="list">${S.incomes.length?S.incomes.map(x=>`<div class="item" style="${x.active?'':'opacity:.45'}"><span class="ic">${ico('up')}</span><div><b>${esc(x.name)}</b><small>${lab[x.frequency]}${x.frequency==='yearly'?' · '+MONTHS[pd(x.start_date).getMonth()]:''}${x.active?'':' · متوقف'}</small></div><div class="acts"><div class="amt" style="margin-inline-end:4px">${money(+x.amount,x.currency)}</div><button class="more" data-edit-inc="${x.id}" aria-label="تعديل">${ico('edit',1.6)}</button><button class="more del" data-del="incomes:${x.id}" aria-label="حذف">${ico('trash',1.6)}</button></div></div>`).join(''):`<div class="empty">أضف راتبك أو أي دخل ثابت</div>`}</div></section></div>`;
   } else if(S.view==='jar'){
     const t=jarTotal();const inc=incomeFor()||1;const h=Math.min(92,Math.max(8,t/(inc*6)*100));
     body=`<div class="sectionhead"><h2 class="h">الحصالة</h2></div>
     <div class="grid"><section class="card span-12 hero" style="padding-top:26px"><div class="jar"><div><div class="lbl">رصيد الحصالة</div><div class="big" style="margin-top:8px">${money(t)}</div>
-      <div class="btns" style="margin-top:22px;max-width:380px"><button class="btn" data-jar="1">${ico('plus')} إيداع</button><button class="btn ghost" style="background:rgba(255,255,255,.6)" data-jar="-1">سحب</button></div></div>
-      <div class="jar-fill" style="background:rgba(255,255,255,.5);border-color:rgba(27,34,8,.2)"><i style="height:${h}%;background:var(--ink)"></i></div></div></section>
-    <section class="card span-12"><h2 class="h" style="font-size:22px">الحركات</h2><div class="list">${S.sav.length?S.sav.map(x=>`<div class="item"><span class="ic">${ico(+x.amount>0?'down':'up')}</span><div><b>${esc(x.note||(+x.amount>0?'إيداع':'سحب'))}</b><small>${fmtDate(x.moved_on)}</small></div><div style="display:flex;gap:4px;align-items:center"><div class="amt" style="color:${+x.amount<0?'var(--bad)':'inherit'}">${money(+x.amount,x.currency)}</div><button class="more" data-del-sav="${x.id}" aria-label="حذف">${ico('trash',1.5)}</button></div></div>`).join(''):`<div class="empty">لم تضع شيئاً في الحصالة بعد</div>`}</div></section></div>`;
+      <div class="btns" style="margin-top:22px;max-width:380px"><button class="btn" style="background:var(--dark);color:var(--lime)" data-jar="1">${ico('plus')} إيداع</button><button class="btn ghost" style="background:rgba(255,255,255,.6);color:var(--lime-ink)" data-jar="-1">سحب</button></div></div>
+      <div class="jar-fill" style="background:rgba(255,255,255,.5);border-color:rgba(27,34,8,.2)"><i style="height:${h}%;background:var(--dark)"></i></div></div></section>
+    <section class="card span-12"><h2 class="h" style="font-size:22px">الحركات</h2><div class="list">${S.sav.length?S.sav.map(x=>`<div class="item"><span class="ic">${ico(+x.amount>0?'down':'up')}</span><div><b>${esc(x.note||(+x.amount>0?'إيداع':'سحب'))}</b><small>${fmtDate(x.moved_on)}</small></div><div class="acts"><div class="amt" style="margin-inline-end:4px;color:${+x.amount<0?'var(--bad)':'inherit'}">${money(+x.amount,x.currency)}</div><button class="more del" data-del="savings:${x.id}" aria-label="حذف">${ico('trash',1.6)}</button></div></div>`).join(''):`<div class="empty">لم تضع شيئاً في الحصالة بعد</div>`}</div></section></div>`;
   }
   app.innerHTML=header()+body;
   renderPreview();
@@ -568,6 +573,7 @@ function expSheet(x){
     const del=s.querySelector('#del');if(del)del.onclick=()=>confirmIn(del,async()=>{if(await run(SB.from('expenses').delete().eq('id',x.id),'حُذف المصروف'))s.remove()});
   });
 }
+function armDel(b){if(b.classList.contains('armed'))return true;b.classList.add('armed');toast('اضغط مرة أخرى للحذف');setTimeout(()=>b.isConnected&&b.classList.remove('armed'),3000);return false}
 function confirmIn(btn,fn){if(btn.dataset.armed){fn();return}btn.dataset.armed=1;btn.style.width='auto';btn.innerHTML='اضغط للتأكيد';setTimeout(()=>{if(btn.isConnected){delete btn.dataset.armed;btn.innerHTML=ico('trash')}},3000)}
 
 function incSheet(x){
@@ -619,14 +625,14 @@ function debtDetail(id){
     ${d.note?`<p class="lbl" style="margin:0 0 14px">${esc(d.note)}</p>`:''}
     ${f.remaining>0?`<form id="pf" style="display:flex;gap:8px;align-items:end;margin-bottom:6px"><div class="f" style="flex:1;margin:0"><span>تسجيل دفعة</span><input id="pa" inputmode="decimal" class="num" value="${Math.min(+d.monthly,f.remaining)}"></div><div class="f" style="margin:0;width:150px"><span>التاريخ</span><input id="pdt" type="date" value="${iso(today())}"></div><button class="round ink" style="width:52px;height:52px" aria-label="تسجيل">${ico('plus')}</button></form>`:''}
     <div class="row" style="margin-top:18px"><b style="font-weight:500">الدفعات (<span class="num">${f.ps.length}</span>)</b>${f.ps.length?`<button class="pill" style="background:var(--soft);height:38px" id="stmt">${ico('pdf')} كشف PDF</button>`:''}</div>
-    <div class="list">${f.ps.length?[...f.ps].reverse().map(p=>`<div class="item"><span class="ic num" style="font-size:13px">${f.ps.indexOf(p)+1}</span><div><b class="num">${plain(+p.amount,d.currency)}</b><small>${fmtDate(p.paid_on)}${p.note?' · '+esc(p.note):''}</small></div><div style="display:flex;gap:2px"><button class="more" data-rcpt="${p.id}" aria-label="إيصال PDF">${ico('pdf',1.5)}</button><button class="more" data-delpay="${p.id}" aria-label="حذف">${ico('trash',1.5)}</button></div></div>`).join(''):`<div class="empty">لا دفعات بعد</div>`}</div>
+    <div class="list">${f.ps.length?[...f.ps].reverse().map(p=>`<div class="item"><span class="ic num" style="font-size:13px">${f.ps.indexOf(p)+1}</span><div><b class="num">${plain(+p.amount,d.currency)}</b><small>${fmtDate(p.paid_on)}${p.note?' · '+esc(p.note):''}</small></div><div class="acts"><button class="more" data-rcpt="${p.id}" aria-label="إيصال PDF">${ico('pdf',1.5)}</button><button class="more" data-delpay="${p.id}" aria-label="حذف">${ico('trash',1.5)}</button></div></div>`).join(''):`<div class="empty">لا دفعات بعد</div>`}</div>
     <div class="btns" style="margin-top:14px"><button class="btn ghost" id="edit">تعديل بيانات الدين</button></div>`,s=>{
     s.querySelector('#edit').onclick=()=>{s.remove();debtSheet(d)};
     const pf=s.querySelector('#pf');if(pf)pf.onsubmit=async e=>{e.preventDefault();const amount=+s.querySelector('#pa').value;if(!(amount>0))return;
       if(await run(SB.from('debt_payments').insert({debt_id:d.id,amount,paid_on:s.querySelector('#pdt').value}),'سُجّلت الدفعة')){s.remove();debtDetail(d.id)}};
     s.addEventListener('click',async e=>{
       const r=e.target.closest('[data-rcpt]');if(r)return pdfReceipt(d,r.dataset.rcpt);
-      const dp=e.target.closest('[data-delpay]');if(dp){if(!dp.dataset.armed){dp.dataset.armed=1;dp.style.color='var(--bad)';toast('اضغط مرة أخرى للحذف');return}if(await run(SB.from('debt_payments').delete().eq('id',dp.dataset.delpay),'حُذفت الدفعة')){s.remove();debtDetail(d.id)}}
+      const dp=e.target.closest('[data-delpay]');if(dp){if(!armDel(dp))return;if(await run(SB.from('debt_payments').delete().eq('id',dp.dataset.delpay),'حُذفت الدفعة')){s.remove();debtDetail(d.id)}}
       if(e.target.closest('#stmt'))pdfStatement(d);
     });
   });
@@ -720,7 +726,7 @@ app.addEventListener('click',e=>{
   if(t.dataset.editInc)return incSheet(S.incomes.find(x=>x.id===t.dataset.editInc));
   if(t.dataset.debt)return debtDetail(t.dataset.debt);
   if(t.dataset.jar)return jarSheet(+t.dataset.jar);
-  if(t.dataset.delSav){if(!t.dataset.armed){t.dataset.armed=1;t.style.color='var(--bad)';toast('اضغط مرة أخرى للحذف');return}return run(SB.from('savings').delete().eq('id',t.dataset.delSav),'حُذفت الحركة')}
+  if(t.dataset.del){if(!armDel(t))return;const [tb,id]=t.dataset.del.split(':');return run(SB.from(tb).delete().eq('id',id),{expenses:'حُذف المصروف',incomes:'حُذف المورد',savings:'حُذفت الحركة'}[tb])}
   if(t.id==='addExp')return expSheet();
   if(t.id==='addDebt'||t.id==='addDebt2')return debtSheet();
   if(t.id==='addInc')return incSheet();
