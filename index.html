@@ -453,6 +453,7 @@ function incomeFor(m=S.month){
   for(const x of S.incomes){ if(!x.active||x.start_date>b)continue;
     let v=0; if(x.frequency==='monthly')v=+x.amount;
     else if(x.frequency==='daily'){const s=pd(x.start_date),first=pd(a);const from=s>first?s.getDate():1;v=+x.amount*(dim(m.getFullYear(),m.getMonth())-from+1)}
+    else if(x.frequency==='once'){if(x.start_date>=a)v=+x.amount}
     else if(pd(x.start_date).getMonth()===m.getMonth())v=+x.amount;
     t+=conv(v,x.currency,rateNow());}
   return t;
@@ -476,6 +477,7 @@ function dueFor(m=S.month){
   return S.incomes.filter(x=>x.active&&x.start_date<=b).flatMap(x=>{
     const st=pd(x.start_date);let amount=+x.amount,day=x.pay_day||st.getDate();
     if(x.frequency==='yearly'&&st.getMonth()!==m.getMonth())return [];
+    if(x.frequency==='once'){if(x.start_date<a)return [];day=st.getDate()}
     if(x.frequency==='daily'){const from=x.start_date>a?st.getDate():1;amount=+x.amount*(n-from+1);day=x.pay_day||n}
     const date=iso(new Date(m.getFullYear(),m.getMonth(),Math.min(day,n)));
     return [{inc:x,date,amount,period:per,rec:S.cash.find(c=>c.income_id===x.id&&c.period===per)}];
@@ -737,10 +739,11 @@ function render(){
       <button class="card addcard span-6" id="addDebt2">${ico('plus')}<span>أضف ديناً</span></button>
     </div>`;
   } else if(S.view==='inc'){
-    const lab={daily:'يومي',monthly:'شهري',yearly:'سنوي'};
-    body=`<div class="sectionhead"><h2 class="h">الموارد الثابتة</h2><button class="pill" style="background:var(--ink);color:var(--card)" id="addInc">${ico('plus')} مورد</button></div>
+    const lab={daily:'يومي',monthly:'شهري',yearly:'سنوي',once:'مقطوع'};
+    const incWhen=x=>{if(x.frequency==='once'){const got=S.cash.find(c=>c.income_id===x.id);return got?'استُلم '+fmtDate(got.moved_on):'متوقع '+fmtDate(x.start_date)}return 'يُقبض '+(x.frequency==='yearly'?(x.pay_day||pd(x.start_date).getDate())+' '+MONTHS[pd(x.start_date).getMonth()]:'يوم '+(x.frequency==='daily'&&!x.pay_day?'آخر الشهر':(x.pay_day||pd(x.start_date).getDate())))};
+    body=`<div class="sectionhead"><h2 class="h">الموارد</h2><div style="display:flex;gap:8px"><button class="pill" style="background:var(--lime);color:var(--lime-ink)" id="addOnce">${ico('plus')} مقطوع</button><button class="pill" style="background:var(--ink);color:var(--card)" id="addInc">${ico('plus')} ثابت</button></div></div>
     <div class="grid"><section class="card hero span-12" style="padding-top:26px"><div class="lbl">الوارد المتوقع في ${MONTHS[S.month.getMonth()]}</div><div class="big" style="margin-top:8px">${money(incomeFor())}</div></section>
-    <section class="card span-12"><div class="list">${S.incomes.length?S.incomes.map(x=>`<div class="item" style="${x.active?'':'opacity:.45'}"><span class="ic">${ico('up')}</span><div><b>${esc(x.name)}</b><small>${lab[x.frequency]} · يُقبض ${x.frequency==='yearly'?(x.pay_day||pd(x.start_date).getDate())+' '+MONTHS[pd(x.start_date).getMonth()]:'يوم '+(x.frequency==='daily'&&!x.pay_day?'آخر الشهر':(x.pay_day||pd(x.start_date).getDate()))}${x.active?'':' · متوقف'}</small></div><div class="acts"><div class="amt" style="margin-inline-end:4px">${money(+x.amount,x.currency)}</div><button class="more" data-edit-inc="${x.id}" aria-label="تعديل">${ico('edit',1.6)}</button><button class="more del" data-del="incomes:${x.id}" aria-label="حذف">${ico('trash',1.6)}</button></div></div>`).join(''):`<div class="empty">أضف راتبك أو أي دخل ثابت</div>`}</div></section></div>`;
+    <section class="card span-12"><div class="list">${S.incomes.length?S.incomes.map(x=>`<div class="item" style="${x.active?'':'opacity:.45'}"><span class="ic" style="${x.frequency==='once'?'background:var(--lime);color:var(--lime-ink)':''}">${ico(x.frequency==='once'?'coins':'up')}</span><div><b>${esc(x.name)}</b><small>${lab[x.frequency]} · ${incWhen(x)}${x.active?'':' · متوقف'}</small></div><div class="acts"><div class="amt" style="margin-inline-end:4px">${money(+x.amount,x.currency)}</div><button class="more" data-edit-inc="${x.id}" aria-label="تعديل">${ico('edit',1.6)}</button><button class="more del" data-del="incomes:${x.id}" aria-label="حذف">${ico('trash',1.6)}</button></div></div>`).join(''):`<div class="empty">أضف راتبك أو دخلاً ثابتاً، أو عملاً مقطوعاً على القطعة</div>`}</div></section></div>`;
   } else if(S.view==='box'){
     const keep=S.disp;S.disp=S.boxCur||S.disp;
     const t=cashTotal(),due=dueFor(),td=iso(today());
@@ -752,7 +755,7 @@ function render(){
     <div class="grid"><section class="card span-7 hero boxtab" style="padding-top:22px"><div class="row" style="flex-wrap:wrap;gap:10px"><div class="lbl">رصيد الصندوق</div>${curBtn()}</div><div class="boxnum" style="color:${t<0?'#A3251A':'inherit'}">${money(t)}</div>
       ${pend>0?`<div class="lbl" style="margin-top:10px">بانتظار الاستلام هذا الشهر: ${money(pend).replace(/<[^>]+>/g,'')}</div>`:''}
       <div class="btns" style="margin-top:22px;max-width:380px"><button class="btn" style="background:var(--dark);color:var(--lime)" data-cash="1">${ico('plus')} إضافة</button><button class="btn ghost" style="background:rgba(255,255,255,.6);color:var(--lime-ink)" data-cash="-1">سحب</button></div></section>
-    <section class="card span-5"><div class="row"><h2 class="h" style="font-size:22px">موارد ${MONTHS[S.month.getMonth()]}</h2><span class="lbl num">${due.filter(d=>d.rec).length}/${due.length}</span></div>
+    <section class="card span-5"><div class="row"><h2 class="h" style="font-size:22px">موارد ${MONTHS[S.month.getMonth()]}</h2><div style="display:flex;gap:8px;align-items:center"><span class="lbl num">${due.filter(d=>d.rec).length}/${due.length}</span><button class="pill" style="height:36px;background:var(--lime);color:var(--lime-ink)" id="addOnce">${ico('plus')} مقطوع</button></div></div>
       <div class="list" style="margin-top:6px">${due.length?due.map(d=>`<div class="due ${d.rec?'done':''}"><span class="ic">${ico(d.rec?'check':'up')}</span><div><b>${esc(d.inc.name)}</b><small${!d.rec&&d.date<td?' class="late"':''}>${when(d)}</small><div class="num" style="margin-top:2px">${money(d.amount,d.inc.currency)}</div></div>
         ${d.rec?`<button class="donechip" data-undo="${d.rec.id}" aria-label="تراجع عن الاستلام">${ico('check')} تم ${ico('undo')}</button>`:`<button class="okbtn" data-recv="${d.inc.id}">تم</button>`}</div>`).join(''):`<div class="empty">لا موارد مستحقة هذا الشهر.<br>أضفها من تبويب الموارد.</div>`}</div></section>
     <section class="card span-12 soft" style="background:var(--soft)"><div class="row" style="margin-bottom:12px"><div><h2 class="h" style="font-size:22px">دفعات معلّقة</h2></div><button class="pill" style="background:var(--ink);color:var(--card)" id="addPend">${ico('plus')} دفعة</button></div>
@@ -816,20 +819,29 @@ function armDel(b){if(b.classList.contains('armed'))return true;b.classList.add(
 function confirmIn(btn,fn){if(btn.dataset.armed){fn();return}btn.dataset.armed=1;btn.style.width='auto';btn.innerHTML='اضغط للتأكيد';setTimeout(()=>{if(btn.isConnected){delete btn.dataset.armed;btn.innerHTML=ico('trash')}},3000)}
 
 function incSheet(x){
-  x=x||{name:'',amount:'',currency:'USD',frequency:'monthly',start_date:iso(today()),active:true};
-  sheet(x.id?'تعديل المورد':'مورد ثابت جديد',`<form id="f">
-    <div class="f"><span>اسم المورد</span><input id="n" value="${esc(x.name)}" placeholder="راتب، إيجار محل، عمل حر..." required></div>
+  x={name:'',amount:'',currency:'USD',frequency:'monthly',start_date:iso(today()),active:true,...(x||{})};
+  sheet(x.id?'تعديل المورد':x.frequency==='once'?'مورد مقطوع جديد':'مورد جديد',`<form id="f">
+    <div class="f"><span>اسم المورد</span><input id="n" value="${esc(x.name)}" placeholder="راتب، شركة كذا، عمل على القطعة..." required></div>
     <div class="f"><span>القيمة</span><input id="a" inputmode="decimal" class="num" value="${x.amount}" required></div>
     <div class="f">${curSeg('c',x.currency)}</div>
-    <div class="f"><span>التكرار</span><div class="seg" data-seg="fr">${[['daily','يومي'],['monthly','شهري'],['yearly','سنوي']].map(([v,l])=>`<button type="button" data-val="${v}" aria-pressed="${x.frequency===v}">${l}</button>`).join('')}</div></div>
-    <div class="two"><div class="f"><span>يبدأ من (للسنوي: شهر الاستحقاق)</span><input id="d" type="date" value="${x.start_date}"></div>
-    <div class="f"><span>يوم القبض من الشهر</span><input id="pdy" type="number" inputmode="numeric" min="1" max="31" class="num" value="${x.pay_day||''}" placeholder="${x.frequency==='daily'?'آخر الشهر':'مثل يوم البداية'}"></div></div>
-    ${x.id?`<label class="f" style="flex-direction:row;align-items:center;gap:10px"><input type="checkbox" id="act" ${x.active?'checked':''} style="width:22px;height:22px"> <span style="font-size:14px;color:var(--ink)">فعّال</span></label>`:''}
+    <div class="f"><span>النوع</span><div class="seg" data-seg="fr">${[['once','مقطوع'],['daily','يومي'],['monthly','شهري'],['yearly','سنوي']].map(([v,l])=>`<button type="button" data-val="${v}" aria-pressed="${x.frequency===v}">${l}</button>`).join('')}</div></div>
+    <p class="lbl" id="onceHint" style="margin:-4px 0 12px">دفعة واحدة غير متكررة، مثل عمل على القطعة.</p>
+    <div class="two"><div class="f"><span id="dlbl">يبدأ من (للسنوي: شهر الاستحقاق)</span><input id="d" type="date" value="${x.start_date}"></div>
+    <div class="f" id="pdyWrap"><span>يوم القبض من الشهر</span><input id="pdy" type="number" inputmode="numeric" min="1" max="31" class="num" value="${x.pay_day||''}" placeholder="${x.frequency==='daily'?'آخر الشهر':'مثل يوم البداية'}"></div></div>
+    ${x.id?`<label class="f" id="actWrap" style="flex-direction:row;align-items:center;gap:10px"><input type="checkbox" id="act" ${x.active?'checked':''} style="width:22px;height:22px"> <span style="font-size:14px;color:var(--ink)">فعّال</span></label>`:''}
+    ${x.id?'':`<label class="f" id="nowWrap" style="flex-direction:row;align-items:center;gap:10px"><input type="checkbox" id="now" style="width:22px;height:22px"> <span style="font-size:14px;color:var(--ink)">قبضته الآن، أدخله للصندوق مباشرة</span></label>`}
     <div class="btns"><button class="btn">حفظ</button>${x.id?`<button type="button" class="btn danger" id="del" style="width:auto">${ico('trash')}</button>`:''}</div></form>`,s=>{
     wireSeg(s);
+    const kind=()=>{const once=segVal(s,'fr')==='once';s.querySelector('#onceHint').hidden=!once;s.querySelector('#pdyWrap').hidden=once;
+      s.querySelector('#dlbl').textContent=once?'تاريخ القبض':'يبدأ من (للسنوي: شهر الاستحقاق)';const nw=s.querySelector('#nowWrap');if(nw)nw.hidden=!once};
+    s.querySelector('[data-seg="fr"]').addEventListener('click',kind);kind();
     s.querySelector('#f').onsubmit=async e=>{e.preventDefault();const amount=parseFloat(s.querySelector('#a').value.replace(/,/g,''));if(!(amount>0))return toast('اكتب قيمة صحيحة');
-      const row={name:s.querySelector('#n').value.trim(),...norm$(amount,segVal(s,'c')),frequency:segVal(s,'fr'),start_date:s.querySelector('#d').value,pay_day:Math.min(31,Math.max(1,parseInt(s.querySelector('#pdy').value)))||null,active:x.id?s.querySelector('#act').checked:true};
-      if(await run(x.id?SB.from('incomes').update(row).eq('id',x.id):SB.from('incomes').insert(row),'تم حفظ المورد'))s.remove()};
+      const fr=segVal(s,'fr'),now=fr==='once'&&s.querySelector('#now')?.checked;
+      const row={name:s.querySelector('#n').value.trim(),...norm$(amount,segVal(s,'c')),frequency:fr,start_date:now?iso(today()):s.querySelector('#d').value,pay_day:fr==='once'?null:Math.min(31,Math.max(1,parseInt(s.querySelector('#pdy').value)))||null,active:x.id?s.querySelector('#act').checked:true};
+      if(x.id){if(await run(SB.from('incomes').update(row).eq('id',x.id),'تم حفظ المورد'))s.remove();return}
+      const ins=await SB.from('incomes').insert(row).select().single();if(ins.error)return toast('تعذّر الحفظ: '+ins.error.message);
+      if(now){const c=await SB.from('cash').insert({amount:row.amount,currency:row.currency,rate:rateNow(),note:row.name,moved_on:row.start_date,income_id:ins.data.id,period:row.start_date.slice(0,7)});if(c.error)toast('حُفظ المورد لكن تعذّر إدخاله للصندوق')}
+      s.remove();await refresh();toast(now?`دخل ${plain(row.amount,row.currency)} إلى الصندوق`:'تم حفظ المورد')};
     const del=s.querySelector('#del');if(del)del.onclick=()=>confirmIn(del,async()=>{if(await run(SB.from('incomes').delete().eq('id',x.id),'حُذف المورد'))s.remove()});
   });
 }
@@ -1033,6 +1045,7 @@ app.addEventListener('click',async e=>{
   if(t.id==='addExp')return expSheet();
   if(t.id==='addDebt'||t.id==='addDebt2')return debtSheet();
   if(t.id==='addInc')return incSheet();
+  if(t.id==='addOnce')return incSheet({frequency:'once'});
   const d=S.draft;if(!d)return;
   if(t.hasAttribute('data-pcur')){d.cur={USD:'SYP',SYP:'OLD',OLD:'USD'}[d.cur];return renderPreview()}
   if(t.dataset.pcat){d.cat=t.dataset.pcat;return renderPreview()}
