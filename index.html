@@ -143,6 +143,7 @@ button.item.upc{width:100%;text-align:start;color:inherit}
 .curbtn:active{transform:scale(.92) rotate(-20deg)}
 .curbtn svg{width:22px;height:22px}
 .curbtn b{font-size:10.5px;font-weight:500;line-height:1}
+.big,.mid,.boxnum,.msg .mamt{white-space:nowrap;max-width:100%}
 .okbtn{height:40px;border-radius:99px;background:var(--lime);color:var(--lime-ink);font-weight:500;padding:0 18px;white-space:nowrap}
 .donechip{height:40px;border-radius:99px;background:var(--soft);color:var(--muted);padding:0 12px;display:inline-flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap}
 .donechip svg{width:15px;height:15px}
@@ -740,14 +741,25 @@ function render(){
   app.innerHTML=header()+body;
   document.getElementById('boxBadge').hidden=!pendingNow();
   renderPreview();
+  fitNums();
 }
 
 /* ---------- sheets ---------- */
+/* shrink big numbers that would overflow their card (e.g. billions of old pounds) */
+function fitNums(root=document){
+  root.querySelectorAll('.big,.mid,.boxnum,.msg .mamt').forEach(el=>{
+    el.style.fontSize='';const w=el.clientWidth;if(!w||el.scrollWidth<=w)return;
+    let fs=parseFloat(getComputedStyle(el).fontSize);
+    for(let i=0;i<6&&el.scrollWidth>w;i++){fs=Math.max(14,fs*w/el.scrollWidth*.97);el.style.fontSize=fs+'px'}
+  });
+}
+let fitT;addEventListener('resize',()=>{clearTimeout(fitT);fitT=setTimeout(()=>fitNums(),120)});
+document.fonts?.ready.then(()=>fitNums());
 function sheet(title,html,onMount){
   const s=document.createElement('div');s.className='scrim';
   s.innerHTML=`<div class="sheet" role="dialog" aria-modal="true"><h3>${title}<button class="round" style="background:var(--soft)" data-close aria-label="إغلاق">${ico('x')}</button></h3>${html}</div>`;
   s.addEventListener('click',e=>{if(e.target===s||e.target.closest('[data-close]'))s.remove()});
-  document.body.append(s);onMount?.(s);const f=s.querySelector('input');f&&setTimeout(()=>f.focus(),60);return s;
+  document.body.append(s);onMount?.(s);fitNums(s);const f=s.querySelector('input');f&&setTimeout(()=>f.focus(),60);return s;
 }
 const curSeg=(name,val)=>`<div class="seg" data-seg="${name}"><button type="button" data-val="USD" aria-pressed="${val==='USD'}">دولار $</button><button type="button" data-val="SYP" aria-pressed="${val==='SYP'}">ليرة جديدة</button><button type="button" data-val="OLD" aria-pressed="${val==='OLD'}">ليرة قديمة</button></div>`;
 function wireSeg(s){s.querySelectorAll('.seg').forEach(g=>g.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));}))}
