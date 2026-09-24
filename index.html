@@ -206,9 +206,6 @@ button{cursor:pointer;border:0;background:none}
 
 .toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:var(--dark);color:var(--dark-ink);padding:12px 20px;border-radius:99px;z-index:60;font-size:14px;animation:up .2s}
 
-/* auth */
-.auth{max-width:420px;margin:8vh auto 0}
-.auth .hero{padding-top:90px}
 
 .sectionhead{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:26px 0 14px}
 .sectionhead .h{font-size:34px}
@@ -646,15 +643,13 @@ function settingsSheet(){
     <b style="font-weight:500;display:block;margin:18px 0 8px">الفئات</b>
     <div class="list" id="cl">${S.cats.map(c=>`<div class="item"><span class="ic">${ico(c.icon)}</span><input value="${esc(c.name)}" data-cat="${c.id}" style="border:0;background:none;font-size:15px;outline:0;min-width:0" aria-label="اسم الفئة"><button class="more" data-delcat="${c.id}" aria-label="حذف">${ico('trash',1.5)}</button></div>`).join('')}</div>
     <form id="nc" style="display:flex;gap:8px;margin-top:10px"><div class="f" style="flex:1;margin:0"><input id="ncn" placeholder="فئة جديدة"></div><button class="round ink" style="width:52px;height:52px" aria-label="إضافة فئة">${ico('plus')}</button></form>
-    <div class="btns" style="margin-top:22px"><button class="btn danger" id="out">تسجيل الخروج</button></div>
-    <p class="lbl" style="text-align:center;margin-top:14px">${esc(S.user.email)}</p>`,s=>{
+`,s=>{
     wireSeg(s);
     s.querySelectorAll('.seg').forEach(g=>g.addEventListener('click',()=>{S.inCur=segVal(s,'in');S.disp=segVal(s,'disp');store.set('inCur',S.inCur);store.set('disp',S.disp);render()}));
     s.querySelectorAll('[data-cat]').forEach(i=>i.onchange=()=>run(SB.from('categories').update({name:i.value.trim()}).eq('id',i.dataset.cat),'حُفظ الاسم'));
     s.addEventListener('click',async e=>{const b=e.target.closest('[data-delcat]');if(!b)return;if(!b.dataset.armed){b.dataset.armed=1;b.style.color='var(--bad)';toast('اضغط مرة أخرى للحذف');return}
       if(await run(SB.from('categories').delete().eq('id',b.dataset.delcat),'حُذفت الفئة')){s.remove();settingsSheet()}});
     s.querySelector('#nc').onsubmit=async e=>{e.preventDefault();const n=s.querySelector('#ncn').value.trim();if(!n)return;if(await run(SB.from('categories').insert({name:n,icon:'dot',sort:S.cats.length}),'أضيفت الفئة')){s.remove();settingsSheet()}};
-    s.querySelector('#out').onclick=async()=>{await SB.auth.signOut();location.reload()};
   });
 }
 function rateSheet(){
@@ -736,35 +731,10 @@ app.addEventListener('click',e=>{
   if(t.hasAttribute('data-pdate')){const opts=[0,-1,-2];const cur=opts.findIndex(n=>iso(new Date(today().getTime()+n*864e5))===d.date);const n=opts[(cur+1)%3]??0;const dd=today();dd.setDate(dd.getDate()+n);d.date=iso(dd);d.dateTxt=n===0?'اليوم':n===-1?'أمس':'أول أمس';return renderPreview()}
 });
 document.getElementById('nav').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;S.view=b.dataset.v;render();scrollTo(0,0)});
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&S.user&&!document.querySelector('.scrim')&&!document.activeElement?.value)refresh().catch(()=>{})});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&S.ready&&!document.querySelector('.scrim')&&!document.activeElement?.value)refresh().catch(()=>{})});
 
-/* ---------- auth ---------- */
-function authView(mode='in',msg=''){
-  document.getElementById('nav').hidden=true;
-  app.innerHTML=`<div class="auth"><section class="card hero">
-    <div class="notch"><span class="round">${ico('wallet')}</span></div>
-    <div class="hero-title"><div><b style="font-size:22px">Budgeter</b><small>مصروفاتك، ديونك، وحصالتك</small></div></div>
-    <h1 class="h" style="font-size:34px;margin-bottom:18px">${mode==='in'?'أهلاً بعودتك':'حساب جديد'}</h1>
-    <form id="af">
-      <div class="f"><span>البريد الإلكتروني</span><input id="em" type="email" autocomplete="email" required style="background:rgba(255,255,255,.6);border-color:transparent"></div>
-      <div class="f"><span>كلمة المرور</span><input id="pw" type="password" autocomplete="${mode==='in'?'current-password':'new-password'}" minlength="6" required style="background:rgba(255,255,255,.6);border-color:transparent"></div>
-      ${msg?`<p style="font-size:14px;margin:4px 0 12px">${msg}</p>`:''}
-      <button class="btn">${mode==='in'?'دخول':'إنشاء الحساب'}</button>
-    </form>
-    <button class="btn ghost" style="background:transparent;margin-top:6px;color:var(--lime-ink)" id="sw">${mode==='in'?'ليس لديك حساب؟ أنشئ واحداً':'لديك حساب؟ سجّل الدخول'}</button>
-  </section></div>`;
-  document.getElementById('sw').onclick=()=>authView(mode==='in'?'up':'in');
-  document.getElementById('af').onsubmit=async e=>{e.preventDefault();const email=em.value.trim(),password=pw.value;
-    const r=mode==='in'?await SB.auth.signInWithPassword({email,password}):await SB.auth.signUp({email,password,options:{emailRedirectTo:location.origin+location.pathname}});
-    if(r.error)return authView(mode,r.error.message==='Invalid login credentials'?'البريد أو كلمة المرور غير صحيحة.':esc(r.error.message));
-    if(mode==='up'&&!r.data.session)return authView('in','أرسلنا رابط تأكيد إلى بريدك. افتحه ثم سجّل الدخول هنا.');
-    boot();
-  };
-}
 async function boot(){
-  const {data}=await SB.auth.getSession();
-  if(!data.session)return authView();
-  S.user=data.session.user;
+  S.ready=true;
   app.innerHTML=`<div style="padding:30vh 0;text-align:center" class="lbl">جارٍ التحميل...</div>`;
   try{await loadAll();render()}catch(err){app.innerHTML=`<div class="card" style="margin-top:20vh">تعذّر تحميل البيانات: ${esc(err.message)}<br><br><button class="btn" onclick="location.reload()">إعادة المحاولة</button></div>`}
 }
