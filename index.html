@@ -34,6 +34,7 @@ body{
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer;border:0;background:none}
 :focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+span.num{direction:ltr;unicode-bidi:isolate}
 .num{font-family:"Outfit",sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 .wrap{max-width:1180px;margin:0 auto}
 [hidden]{display:none!important}
@@ -298,9 +299,10 @@ function conv(amount,cur,rate){amount=+amount;rate=+rate||rateNow();if(cur===S.d
 function money(v,cur=S.disp,opts={}){
   const n=Math.abs(v)<1e-9?0:v;
   const r2=Math.round(n*100)/100; const dec = cur==='USD' && Math.abs(n)<1000 && r2!==Math.round(r2) ? 2 : 0;
-  const s=new Intl.NumberFormat('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec}).format(Math.round(n*(dec?100:1))/(dec?100:1));
+  const sg=n<0?'-':opts.sign&&n>0?'+':'';
+  const s=sg+new Intl.NumberFormat('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec}).format(Math.round(Math.abs(n)*(dec?100:1))/(dec?100:1));
   if(opts.bare)return s;
-  return `<span class="num">${cur==='USD'?'$':''}${s}</span>${cur==='SYP'?'<span class="cur">ل.س</span>':''}`;
+  return `<span class="num">${sg}${cur==='USD'?'$':''}${s.slice(sg.length)}</span>${cur==='SYP'?'<span class="cur">ل.س</span>':''}`;
 }
 const plain=(v,cur)=>(cur==='USD'?'$':'')+new Intl.NumberFormat('en-US',{maximumFractionDigits:cur==='USD'?2:0}).format(v)+(cur==='SYP'?' ل.س':'');
 function toast(t){const e=document.createElement('div');e.className='toast';e.textContent=t;document.body.append(e);setTimeout(()=>e.remove(),2200)}
@@ -355,7 +357,16 @@ function incomeFor(m=S.month){
 const expIn=(m=S.month)=>{const [a,b]=monthRange(m);return S.exp.filter(x=>x.spent_on>=a&&x.spent_on<=b)};
 const spentFor=m=>expIn(m).reduce((t,x)=>t+conv(x.amount,x.currency,x.rate),0);
 function debtPaidFor(m=S.month){const [a,b]=monthRange(m);return S.pays.filter(p=>p.paid_on>=a&&p.paid_on<=b).reduce((t,p)=>{const d=S.debts.find(x=>x.id===p.debt_id);return t+(d?conv(p.amount,d.currency,rateNow()):0)},0)}
-const cashTotal=()=>S.cash.reduce((t,x)=>t+conv(x.amount,x.currency,rateNow()),0);
+/* box ledger: manual entries + received incomes, minus expenses and debt payments */
+function boxMoves(){
+  const cur=id=>(S.debts.find(d=>d.id===id)||{}).currency;
+  return [
+    ...S.cash.map(x=>({date:x.moved_on,at:x.created_at,amount:+x.amount,currency:x.currency,title:x.note||(+x.amount>0?'إضافة':'سحب'),sub:x.income_id?'مورد':'يدوي',icon:+x.amount>0?'down':'up',del:'cash:'+x.id})),
+    ...S.exp.map(x=>{const c=catById(x.category_id);return {date:x.spent_on,at:x.created_at,amount:-x.amount,currency:x.currency,title:x.note||c.name,sub:'مصروف · '+c.name,icon:c.icon,del:'expenses:'+x.id}}),
+    ...S.pays.filter(p=>cur(p.debt_id)).map(p=>{const d=S.debts.find(x=>x.id===p.debt_id);return {date:p.paid_on,at:p.created_at,amount:-p.amount,currency:d.currency,title:'قسط '+d.creditor,sub:'دفعة دين',icon:'wallet',del:'debt_payments:'+p.id}})
+  ].sort((a,b)=>a.date===b.date?String(b.at).localeCompare(String(a.at)):a.date<b.date?1:-1);
+}
+const cashTotal=()=>boxMoves().reduce((t,x)=>t+conv(x.amount,x.currency,rateNow()),0);
 /* income receipts due in a month: one per income per month (yearly only in its month) */
 function dueFor(m=S.month){
   const [a,b]=monthRange(m),per=b.slice(0,7),n=dim(m.getFullYear(),m.getMonth());
@@ -564,16 +575,19 @@ function render(){
     <section class="card span-12"><div class="list">${S.incomes.length?S.incomes.map(x=>`<div class="item" style="${x.active?'':'opacity:.45'}"><span class="ic">${ico('up')}</span><div><b>${esc(x.name)}</b><small>${lab[x.frequency]} · يُقبض ${x.frequency==='yearly'?(x.pay_day||pd(x.start_date).getDate())+' '+MONTHS[pd(x.start_date).getMonth()]:'يوم '+(x.frequency==='daily'&&!x.pay_day?'آخر الشهر':(x.pay_day||pd(x.start_date).getDate()))}${x.active?'':' · متوقف'}</small></div><div class="acts"><div class="amt" style="margin-inline-end:4px">${money(+x.amount,x.currency)}</div><button class="more" data-edit-inc="${x.id}" aria-label="تعديل">${ico('edit',1.6)}</button><button class="more del" data-del="incomes:${x.id}" aria-label="حذف">${ico('trash',1.6)}</button></div></div>`).join(''):`<div class="empty">أضف راتبك أو أي دخل ثابت</div>`}</div></section></div>`;
   } else if(S.view==='box'){
     const t=cashTotal(),due=dueFor(),td=iso(today());
+    const [ma,mb]=monthRange(),mv=boxMoves().filter(x=>x.date>=ma&&x.date<=mb);
+    const mIn=mv.filter(x=>x.amount>0).reduce((s,x)=>s+conv(x.amount,x.currency,rateNow()),0),mOut=-mv.filter(x=>x.amount<0).reduce((s,x)=>s+conv(x.amount,x.currency,rateNow()),0);
     const pend=due.filter(d=>!d.rec).reduce((s,d)=>s+conv(d.amount,d.inc.currency,rateNow()),0);
     const when=d=>{if(d.rec)return 'استُلم '+fmtDate(d.rec.moved_on);const diff=Math.round((pd(d.date)-today())/864e5);return diff<0?`<span class="late">متأخر ${-diff} يوم · ${fmtDate(d.date)}</span>`:diff===0?'يُقبض اليوم':`بعد ${diff} يوم · ${fmtDate(d.date)}`};
     body=`<div class="sectionhead"><h2 class="h">الصندوق</h2></div>
-    <div class="grid"><section class="card span-7 hero" style="padding-top:26px"><div class="lbl">رصيد الصندوق</div><div class="big" style="margin-top:8px;color:${t<0?'var(--bad)':'inherit'}">${money(t)}</div>
+    <div class="grid"><section class="card span-7 hero" style="padding-top:26px"><div class="lbl">رصيد الصندوق</div><div class="big" style="margin-top:8px;color:${t<0?'#A3251A':'inherit'}">${money(t)}</div>
       ${pend>0?`<div class="lbl" style="margin-top:10px">بانتظار الاستلام هذا الشهر: ${money(pend).replace(/<[^>]+>/g,'')}${S.disp==='SYP'?' ل.س':''}</div>`:''}
+      <div class="lbl" style="margin-top:6px">الموارد تدخل عند «تم» · المصروفات وأقساط الديون تُخصم تلقائياً</div>
       <div class="btns" style="margin-top:22px;max-width:380px"><button class="btn" style="background:var(--dark);color:var(--lime)" data-cash="1">${ico('plus')} إضافة</button><button class="btn ghost" style="background:rgba(255,255,255,.6);color:var(--lime-ink)" data-cash="-1">سحب</button></div></section>
     <section class="card span-5"><div class="row"><h2 class="h" style="font-size:22px">موارد ${MONTHS[S.month.getMonth()]}</h2><span class="lbl num">${due.filter(d=>d.rec).length}/${due.length}</span></div>
       <div class="list" style="margin-top:6px">${due.length?due.map(d=>`<div class="due ${d.rec?'done':''}"><span class="ic">${ico(d.rec?'check':'up')}</span><div><b>${esc(d.inc.name)}</b><small${!d.rec&&d.date<td?' class="late"':''}>${when(d)}</small><div class="num" style="margin-top:2px">${money(d.amount,d.inc.currency)}</div></div>
         ${d.rec?`<button class="donechip" data-undo="${d.rec.id}" aria-label="تراجع عن الاستلام">${ico('check')} تم ${ico('undo')}</button>`:`<button class="okbtn" data-recv="${d.inc.id}">تم</button>`}</div>`).join(''):`<div class="empty">لا موارد مستحقة هذا الشهر.<br>أضفها من تبويب الموارد.</div>`}</div></section>
-    <section class="card span-12"><h2 class="h" style="font-size:22px">الحركات</h2><div class="list">${S.cash.length?S.cash.map(x=>`<div class="item"><span class="ic">${ico(+x.amount>0?'down':'up')}</span><div><b>${esc(x.note||(+x.amount>0?'إضافة':'سحب'))}</b><small>${fmtDate(x.moved_on)}${x.income_id?' · مورد':''}</small></div><div class="acts"><div class="amt" style="margin-inline-end:4px;color:${+x.amount<0?'var(--bad)':'inherit'}">${money(+x.amount,x.currency)}</div><button class="more del" data-del="cash:${x.id}" aria-label="حذف">${ico('trash',1.6)}</button></div></div>`).join(''):`<div class="empty">الصندوق فارغ. أضف مبلغاً يدوياً أو اضغط «تم» عند قبض مورد.</div>`}</div></section></div>`;
+    <section class="card span-12"><div class="row"><h2 class="h" style="font-size:22px">حركات ${MONTHS[S.month.getMonth()]}</h2><div class="lbl" style="text-align:left">دخل <span class="num" style="color:var(--good)">${money(mIn,S.disp,{bare:1})}</span> · خرج <span class="num" style="color:var(--bad)">${money(mOut,S.disp,{bare:1})}</span></div></div><div class="list">${mv.length?mv.map(x=>`<div class="item"><span class="ic">${ico(x.icon)}</span><div><b>${esc(x.title)}</b><small>${fmtDate(x.date)} · ${esc(x.sub)}</small></div><div class="acts"><div class="amt" style="margin-inline-end:4px;color:${x.amount<0?'var(--bad)':'var(--good)'}">${money(x.amount,x.currency,{sign:1})}</div><button class="more del" data-del="${x.del}" aria-label="حذف">${ico('trash',1.6)}</button></div></div>`).join(''):`<div class="empty">لا حركات في هذا الشهر.</div>`}</div></section></div>`;
   } else if(S.view==='jar'){
     const t=jarTotal();const inc=incomeFor()||1;const h=Math.min(92,Math.max(8,t/(inc*6)*100));
     body=`<div class="sectionhead"><h2 class="h">الحصالة</h2></div>
@@ -775,7 +789,7 @@ app.addEventListener('click',e=>{
   if(t.dataset.recv){const d=dueFor().find(x=>x.inc.id===t.dataset.recv);if(!d)return;t.disabled=true;
     return run(SB.from('cash').insert({amount:d.amount,currency:d.inc.currency,rate:rateNow(),note:d.inc.name,moved_on:iso(today()),income_id:d.inc.id,period:d.period}),`أُضيف ${plain(d.amount,d.inc.currency)} إلى الصندوق`)}
   if(t.dataset.undo){if(!armDel(t))return;return run(SB.from('cash').delete().eq('id',t.dataset.undo),'أُلغي الاستلام')}
-  if(t.dataset.del){if(!armDel(t))return;const [tb,id]=t.dataset.del.split(':');return run(SB.from(tb).delete().eq('id',id),{expenses:'حُذف المصروف',incomes:'حُذف المورد',savings:'حُذفت الحركة',cash:'حُذفت الحركة'}[tb])}
+  if(t.dataset.del){if(!armDel(t))return;const [tb,id]=t.dataset.del.split(':');return run(SB.from(tb).delete().eq('id',id),{expenses:'حُذف المصروف',incomes:'حُذف المورد',savings:'حُذفت الحركة',cash:'حُذفت الحركة',debt_payments:'حُذفت الدفعة'}[tb])}
   if(t.id==='addExp')return expSheet();
   if(t.id==='addDebt'||t.id==='addDebt2')return debtSheet();
   if(t.id==='addInc')return incSheet();
