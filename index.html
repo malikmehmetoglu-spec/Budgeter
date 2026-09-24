@@ -96,7 +96,7 @@ span.num{direction:ltr;unicode-bidi:isolate}
 .inout{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:13px;color:rgba(27,34,8,.7)}
 .inout span{display:inline-flex;align-items:center;gap:5px}
 .inout svg{width:14px;height:14px}.inout b{color:var(--lime-ink);font-weight:500}
-.boxacts{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:8px;margin-top:20px}
+.boxacts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:20px}
 .boxacts .btn{height:50px;padding:0 10px;font-size:15px}
 .boxacts .btn.ghost{background:rgba(255,255,255,.55);color:var(--lime-ink)}
 .qcats{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:12px}
@@ -105,7 +105,19 @@ span.num{direction:ltr;unicode-bidi:isolate}
 .qcat span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .qcat:active{background:var(--dark);color:var(--lime)}
 @media (max-width:560px){.qcats{grid-template-columns:repeat(3,1fr)}}
-.boxhome .smart{margin-top:12px}.boxhome .smart label{height:50px}.boxhome .smart .round{width:50px;height:50px}.boxhome .smart label i{width:34px;height:34px}
+.expcard .hero-title2 .av{background:var(--lime);color:var(--lime-ink)}
+.expcard .hero-title2 .lbl{font-size:12.5px;margin-top:2px}
+.btn.addexp{width:auto;height:48px;background:var(--lime);color:var(--lime-ink);padding:0 22px;margin-inline-start:auto}
+.expcard .qcats{margin-top:16px}
+.expcard .qcat{background:var(--soft);color:var(--ink)}
+.expcard .qcat:active{background:var(--lime);color:var(--lime-ink)}
+.expcard .smart{margin-top:12px}
+.expcard .smart label{height:50px;border-color:var(--line);background:var(--soft)}
+.expcard .smart label i{width:34px;height:34px;background:var(--card);color:var(--lime)}
+.expcard .smart input{color:var(--ink)}.expcard .smart input::placeholder{color:var(--faint)}
+.expcard .smart .round{width:50px;height:50px;background:var(--lime);color:var(--lime-ink)}
+.expcard .quick .chip{color:var(--ink);border-color:var(--line)}
+.expcard .chip[aria-pressed="true"]{background:var(--lime);color:var(--lime-ink)}
 .waitline{margin-top:12px;display:flex;align-items:center;gap:8px;width:100%;padding:10px 14px;border-radius:16px;background:var(--dark);color:var(--lime);font-size:13.5px}
 .waitline svg{width:16px;height:16px}.waitline svg:last-child{margin-inline-start:auto}
 .stats2 .cmp{margin-top:16px;display:flex;flex-direction:column;gap:10px}
@@ -510,25 +522,31 @@ function boxHome(){
   const t=cashTotal(),[ma,mb]=monthRange(),mv=boxMoves().filter(x=>x.date>=ma&&x.date<=mb);
   const mIn=mv.filter(x=>x.amount>0).reduce((s,x)=>s+conv(x.amount,x.currency,rateNow()),0),mOut=-mv.filter(x=>x.amount<0).reduce((s,x)=>s+conv(x.amount,x.currency,rateNow()),0);
   const waiting=dueFor().filter(d=>!d.rec).length+S.pend.length;
-  const html=`<section class="card hero span-7 boxhome">
+  const html=`<section class="card hero span-5 boxhome">
     <div class="row" style="flex-wrap:wrap;gap:10px"><div class="hero-title2"><span class="av">${ico('box',2)}</span><b>الصندوق</b></div>
       <div class="seg boxcur" role="group" aria-label="عملة عرض الصندوق">${[['USD','$'],['SYP','ل.س'],['OLD','قديمة']].map(([v,l])=>`<button type="button" data-boxcur="${v}" aria-pressed="${S.disp===v}">${l}</button>`).join('')}</div></div>
     <div class="big" style="margin-top:18px;color:${t<0?'#A3251A':'inherit'}">${money(t)}</div>
     <div class="inout"><span>${ico('down')} دخل ${MONTHS[S.month.getMonth()]} <b class="num">${money(mIn,S.disp,{bare:1})}</b></span><span>${ico('up')} خرج <b class="num">${money(mOut,S.disp,{bare:1})}</b></span></div>
     <div class="boxacts">
-      <button class="btn" id="addExp" style="background:var(--dark);color:var(--lime)">${ico('plus')} مصروف</button>
-      <button class="btn ghost" data-cash="1">${ico('down')} إضافة</button>
+      <button class="btn" data-cash="1" style="background:var(--dark);color:var(--lime)">${ico('down')} إضافة</button>
       <button class="btn ghost" data-cash="-1">${ico('up')} سحب</button>
     </div>
+    ${waiting?`<button class="waitline" data-go="box">${ico('cal')} ${waiting} ${waiting===1?'مبلغ ينتظر':'مبالغ تنتظر'} «تم» ${ico('chev')}</button>`:''}
+  </section>`;
+  S.disp=keep;return html;
+}
+function expHome(){
+  const sp=spentFor(S.month),td=S.exp.filter(x=>x.spent_on===iso(today())).reduce((t,x)=>t+conv(x.amount,x.currency,x.rate),0);
+  return `<section class="card span-7 expcard">
+    <div class="row" style="flex-wrap:wrap;gap:10px"><div class="hero-title2"><span class="av">${ico('wallet',2)}</span><div><b>المصروف</b><div class="lbl">اليوم ${money(td)} · ${MONTHS[S.month.getMonth()]} ${money(sp)}</div></div></div>
+      <button class="btn addexp" id="addExp">${ico('plus')} مصروف</button></div>
     <div class="qcats">${S.cats.map(c=>`<button class="qcat" data-qcat="${c.id}">${ico(c.icon)}<span>${esc(c.name)}</span></button>`).join('')}</div>
     <form class="smart" id="smart" autocomplete="off">
       <label><i>${ico('spark')}</i><input id="smartIn" placeholder="أو اكتب: بنزين 10$ · مازوت 300 ألف قديمة" enterkeyhint="send" aria-label="إضافة مصروف سريعة"></label>
       <button class="round ink" aria-label="إضافة">${ico('send')}</button>
     </form>
     <div id="preview"></div>
-    ${waiting?`<button class="waitline" data-go="box">${ico('cal')} ${waiting} ${waiting===1?'مبلغ ينتظر':'مبالغ تنتظر'} «تم» في الصندوق ${ico('chev')}</button>`:''}
   </section>`;
-  S.disp=keep;return html;
 }
 function statsHome(){
   const m=S.month,pm=addMonths(m,-1),isCur=iso(m).slice(0,7)===iso(today()).slice(0,7);
@@ -655,7 +673,7 @@ function render(){
   let body='';
   if(S.view==='home'){
     const pdue=pendDue();
-    body=`${pdue.length?`<div style="margin-bottom:14px">${pendMsgs(pdue)}</div>`:''}<div class="grid">${boxHome()}${statsHome()}${upcomingCard()}${recentCard()}${catBars('span-7')}${curveCard('span-5')}</div>`;
+    body=`${pdue.length?`<div style="margin-bottom:14px">${pendMsgs(pdue)}</div>`:''}<div class="grid">${boxHome()}${expHome()}${statsHome()}${recentCard()}${upcomingCard()}${catBars('span-7')}${curveCard('span-12')}</div>`;
   } else if(S.view==='exp'){
     const list=expIn();const groups={};list.forEach(x=>(groups[x.spent_on]??=[]).push(x));
     body=`<div class="grid">${weekStrip()}${catBars('span-4')}
