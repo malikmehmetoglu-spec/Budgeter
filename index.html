@@ -276,6 +276,29 @@ button.item.upc{width:100%;text-align:start;color:inherit}
 .debt .bar{background:var(--soft);height:8px}
 .debt .who{display:flex;align-items:center;gap:10px}
 .debt .who i{width:44px;height:44px;border-radius:50%;background:var(--ink);color:var(--lime);display:grid;place-items:center;font-weight:500;font-style:normal;font-size:17px}
+.fcast{display:flex;flex-direction:column;gap:16px}
+.delta.warn{color:#E8B04A}
+.fgrid{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:8px}
+@media (max-width:700px){.fgrid{grid-template-columns:1fr 1fr}.fgrid .fbig{grid-column:1/-1}}
+.fgrid>div{background:var(--soft);border-radius:20px;padding:14px 16px;display:flex;flex-direction:column;gap:4px;min-width:0;container-type:inline-size}
+.fgrid small{font-size:12px;color:var(--muted)}
+.fgrid b{font-weight:300;white-space:nowrap}
+.fbig b{font-size:min(40px,14cqi);color:var(--bad)}
+.fsc b{font-size:min(30px,16cqi)}.fsc b span{font-size:13px;color:var(--muted)}
+.fsc.hl{background:var(--lime);color:var(--lime-ink)}.fsc.hl small,.fsc.hl b span{color:rgba(27,34,8,.65)}
+.flow{display:flex;align-items:stretch;gap:6px;flex-wrap:wrap}
+.flow>div{flex:1 1 120px;background:var(--soft);border-radius:16px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.flow span{font-size:11.5px;color:var(--muted)}.flow b{font-size:17px;font-weight:400}.flow small{font-size:10.5px;color:var(--muted)}
+.flow i{font-style:normal;align-self:center;color:var(--faint);font-size:18px}
+.flow .pos{background:var(--dark)}.flow .pos b{color:var(--lime)}
+.flow .neg{background:color-mix(in srgb,var(--bad) 18%,var(--card))}.flow .neg b{color:var(--bad)}
+@media (max-width:560px){.flow i{display:none}.flow>div{flex:1 1 40%}}
+.fwarn{display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,var(--card));border-radius:14px;padding:10px 12px}
+.fwarn svg{width:16px;height:16px;flex:none}
+.fextra{background:var(--soft);border-radius:18px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;font-size:13.5px}
+.fextra input{width:100%;accent-color:var(--lime)}
+.fextra #fxv{color:var(--lime);font-weight:500;font-size:16px}
+.fbox .bar{height:8px;margin-top:8px;background:var(--soft)}.fbox .bar i{background:var(--lime)}
 .debt2{display:flex;flex-direction:column;gap:16px}
 .debt2 .who{display:flex;align-items:center;gap:10px;min-width:0}
 .debt2 .who b{font-weight:500;display:block}
@@ -739,6 +762,53 @@ function catBars(span='span-4'){
     <div class="cats">${arr.length?arr.map(([id,v])=>{const c=catById(id);return `<div class="cat"><div class="track"><div class="fill" style="width:${Math.max(38,v/max*100)}%">${ico(c.icon)}${esc(c.name)}</div></div><div class="pc"><span class="num">${Math.round(v/total*100)}%</span><br><span class="num" style="color:var(--ink)">${money(v,S.disp,{bare:1})}</span></div></div>`}).join(''):`<div class="empty">لم تسجّل مصروفات هذا الشهر بعد</div>`}</div>
   </section>`;
 }
+/* income → debt forecast (display currency) */
+function forecastData(){
+  const r=rateNow(),t=today(),nowM=new Date(t.getFullYear(),t.getMonth(),1);
+  const fixed=S.incomes.filter(x=>x.active&&x.frequency!=='once').reduce((a,x)=>a+conv(x.frequency==='monthly'?+x.amount:x.frequency==='daily'?x.amount*30.4:x.amount/12,x.currency,r),0);
+  const six=iso(addMonths(nowM,-6));
+  const onceAvg=S.cash.filter(c=>c.income_id&&c.moved_on>=six&&S.incomes.find(x=>x.id===c.income_id&&x.frequency==='once')).reduce((a,c)=>a+conv(+c.amount,c.currency,r),0)/6;
+  const past=[1,2,3].map(k=>spentFor(addMonths(nowM,-k))).filter(v=>v>0);
+  const n=dim(t.getFullYear(),t.getMonth()),cur=spentFor(nowM);
+  const spend=past.length?past.reduce((a,b)=>a+b,0)/past.length:(cur?cur/t.getDate()*n:0);
+  const live=S.debts.map(d=>({d,f:debtInfo(d)})).filter(x=>x.f.remaining>0);
+  const debt=live.reduce((a,x)=>a+conv(x.f.remaining,x.d.currency,r),0);
+  const inst=live.reduce((a,x)=>a+conv(Math.min(+x.d.monthly,x.f.remaining),x.d.currency,r),0);
+  const income=fixed+onceAvg,free=income-spend,afterInst=free-inst;
+  const planEnd=live.reduce((m,x)=>!m||x.f.finish>m?x.f.finish:m,null);
+  const planMonths=live.reduce((m,x)=>Math.max(m,x.f.monthsLeft),0);
+  return {fixed,onceAvg,income,spend,spendFrom:past.length,debt,inst,free,afterInst,planEnd,planMonths,live:live.length,box:cashTotal(),nowM};
+}
+function forecastCard(){
+  const F=forecastData();
+  if(!F.debt)return `<section class="card span-12 fcast"><div class="row"><h2 class="h" style="font-size:22px">توقعات الدين</h2><span class="delta good">لا ديون</span></div><div class="lbl" style="margin-top:8px">لا ديون متبقية عليك. ${F.free>0?`يمكنك ادخار حوالي <b class="num" style="color:var(--ink)">${money(F.free,S.disp,{bare:1})}</b> شهرياً.`:''}</div></section>`;
+  const m=S.disp,M=v=>money(v,m,{bare:1});
+  const ratio=F.income?F.inst/F.income*100:null,rc=ratio===null?'':ratio<30?'good':ratio<45?'warn':'bad';
+  const fullMonths=F.free>0?Math.ceil(F.debt/F.free-1e-9):null;
+  const fullEnd=fullMonths?addMonths(F.nowM,fullMonths-1):null;
+  const mo=k=>k===1?'شهر':k<=10?'أشهر':'شهراً',when=d=>d?`${MONTHS[d.getMonth()]} <span class="num">${d.getFullYear()}</span>`:'—';
+  const boxPct=Math.max(0,Math.min(100,F.box/F.debt*100));
+  const maxExtra=Math.max(0,Math.round(F.afterInst));
+  return `<section class="card span-12 fcast">
+    <div class="row"><div><h2 class="h" style="font-size:22px">توقعات الدين</h2><div class="lbl" style="margin-top:4px">حسب مواردك ومتوسط مصروفك${F.spendFrom?` (آخر ${F.spendFrom} ${mo(F.spendFrom)})`:' (هذا الشهر)'}</div></div>${ratio===null?'':`<span class="delta ${rc}">الأقساط <span class="num">${Math.round(ratio)}%</span> من الدخل</span>`}</div>
+    <div class="fgrid">
+      <div class="fbig"><small>عليك من الديون</small><b class="num">${M(F.debt)}</b><small>${F.live} ${F.live===1?'دين':'ديون'} · تعادل <span class="num">${F.income?(F.debt/F.income).toFixed(1):'—'}</span> ${F.income?'شهر من دخلك':''}</small></div>
+      <div class="fsc"><small>بوتيرة دفعك الحالية</small><b class="num">${F.planMonths} <span>${mo(F.planMonths)}</span></b><small>تنتهي ${when(F.planEnd)}</small></div>
+      <div class="fsc hl"><small>لو وجّهت كل الفائض للدين</small><b class="num">${fullMonths??'—'} <span>${fullMonths?mo(fullMonths):''}</span></b><small>${fullMonths?`تنتهي ${when(fullEnd)}${F.planMonths>fullMonths?` · أسرع بـ<span class="num">${F.planMonths-fullMonths}</span> ${mo(F.planMonths-fullMonths)}`:''}`:'لا يوجد فائض حالياً'}</small></div>
+    </div>
+    <div class="flow">
+      <div><span>الدخل الشهري</span><b class="num">${M(F.income)}</b>${F.onceAvg>0?`<small>ثابت ${M(F.fixed)} + مقطوع ${M(F.onceAvg)}</small>`:''}</div>
+      <i>−</i><div><span>متوسط المصروف</span><b class="num">${M(F.spend)}</b></div>
+      <i>−</i><div><span>أقساط الديون</span><b class="num">${M(F.inst)}</b></div>
+      <i>=</i><div class="${F.afterInst<0?'neg':'pos'}"><span>يبقى لك شهرياً</span><b class="num">${M(F.afterInst)}</b></div>
+    </div>
+    ${F.afterInst<0?`<div class="fwarn">${ico('bolt')} دخلك لا يغطي المصروف والأقساط معاً؛ ينقصك <b class="num">${M(-F.afterInst)}</b> شهرياً.</div>`:''}
+    ${maxExtra>0?`<div class="fextra"><div class="row"><span>لو أضفت فوق الأقساط شهرياً</span><b class="num" id="fxv">0</b></div>
+      <input type="range" id="fx" min="0" max="${maxExtra}" step="${Math.max(1,Math.round(maxExtra/50))}" value="0" data-debt="${F.debt}" data-inst="${F.inst}" aria-label="دفعة إضافية شهرية">
+      <div class="lbl" id="fxr">تسدد كل الديون خلال <b class="num" style="color:var(--ink)">${F.inst>0?Math.ceil(F.debt/F.inst-1e-9):'—'}</b> شهراً</div></div>`:''}
+    <div class="fbox"><div class="row lbl"><span>الصندوق يغطي من الديون الآن</span><b class="num" style="color:var(--ink)">${Math.round(boxPct)}%</b></div><div class="bar"><i style="width:${boxPct}%"></i></div></div>
+  </section>`;
+}
 function debtCard(d,i){
   const f=debtInfo(d),done=f.remaining<=0,lime=i===0&&!done;
   const last=f.ps[f.ps.length-1];
@@ -796,6 +866,7 @@ function render(){
     body=`<div class="sectionhead"><h2 class="h">الموارد</h2></div>
     <div class="grid"><section class="card hero span-12" style="padding-top:26px"><div class="lbl">الوارد المتوقع في ${MONTHS[S.month.getMonth()]}</div><div class="big" style="margin-top:8px">${money(incomeFor())}</div>
       <div class="inout" style="margin-top:12px"><span>ثابت <b class="num">${money(fixedM,S.disp,{bare:1})}</b></span><span>مقطوع <b class="num">${money(onceM,S.disp,{bare:1})}</b></span></div></section>
+    ${forecastCard()}
     <section class="card span-6"><div class="row"><div><h2 class="h" style="font-size:22px">الموارد الثابتة</h2><div class="lbl" style="margin-top:4px">تتكرر يومياً أو شهرياً أو سنوياً</div></div><button class="pill" style="background:var(--ink);color:var(--card)" id="addInc">${ico('plus')} ثابت</button></div>
       <div class="list" style="margin-top:6px">${fixed.length?fixed.map(incRow).join(''):`<div class="empty">أضف راتبك أو أي دخل متكرر</div>`}</div></section>
     <section class="card span-6"><div class="row"><div><h2 class="h" style="font-size:22px">الموارد المقطوعة</h2><div class="lbl" style="margin-top:4px">${onceWait>0?`بانتظار القبض ${money(onceWait,S.disp,{bare:1})}`:'دفعات لمرة واحدة، مثل العمل على القطعة'}</div></div><button class="pill" style="background:var(--lime);color:var(--lime-ink)" id="addOnce">${ico('plus')} مقطوع</button></div>
@@ -1059,7 +1130,9 @@ function pdfStatement(d){
 }
 
 /* ---------- events ---------- */
-app.addEventListener('input',e=>{if(e.target.id==='smartIn'){const v=e.target.value.trim();S.draft=v?parseSmart(v):null;renderPreview()}});
+app.addEventListener('input',e=>{if(e.target.id==='fx'){const x=+e.target.value,D=+e.target.dataset.debt,I=+e.target.dataset.inst,k=I+x>0?Math.ceil(D/(I+x)-1e-9):null,end=k?addMonths(new Date(today().getFullYear(),today().getMonth(),1),k-1):null;
+  document.getElementById('fxv').textContent=money(x,S.disp,{bare:1});
+  document.getElementById('fxr').innerHTML=k?`تسدد كل الديون خلال <b class="num" style="color:var(--ink)">${k}</b> ${k===1?'شهر':k<=10?'أشهر':'شهراً'} · ${MONTHS[end.getMonth()]} <span class="num">${end.getFullYear()}</span>`:'—';return}if(e.target.id==='smartIn'){const v=e.target.value.trim();S.draft=v?parseSmart(v):null;renderPreview()}});
 app.addEventListener('submit',async e=>{
   const pf=e.target.closest('[data-payform]');
   if(pf){e.preventDefault();const d=S.debts.find(x=>x.id===pf.dataset.payform);const a=parseFloat(pf.a.value.replace(/,/g,''));
